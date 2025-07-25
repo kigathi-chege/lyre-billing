@@ -61,11 +61,11 @@ class SubscriptionPlanResource extends Resource
                     ->default(0),
                 Forms\Components\Select::make('product_type')
                     ->options([
-                        \App\Models\Exam::class => 'Exam',
-                        \App\Models\Course::class => 'Course',
-                        \App\Models\Product::class => 'Custom Product',
+                        // \App\Models\Exam::class => 'Exam',
+                        // \App\Models\Course::class => 'Course',
+                        // \App\Models\Product::class => 'Custom Product',
                     ])
-                    ->default(\App\Models\Exam::class)
+                    // ->default(\App\Models\Exam::class)
                     ->searchable()
                     ->reactive()
                     ->afterStateUpdated(fn(callable $set) => $set('product_id', null)),

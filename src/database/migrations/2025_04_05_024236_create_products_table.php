@@ -19,7 +19,7 @@ return new class extends Migration
                 $table->string("name");
                 $table->string("slug")->unique()->index();
                 $table->text("description")->nullable();
-                $table->enum("pricing_model", config('app.product_pricing_models'))->default('free');
+                $table->enum("pricing_model", config('lyre-billing.pricing_models', ['free', 'fixed', 'usage_based']))->default('free');
 
                 $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             });

@@ -34,7 +34,7 @@ return new class extends Migration
 
         if (Schema::hasColumn('subscriptions', 'status')) {
             Schema::table('subscriptions', function (Blueprint $table) {
-                $table->enum('status', config('services.paypal.subscription_status'))->default('pending')->change();
+                $table->enum('status', config('lyre-billing.subscription_statuses', ['pending', 'active', 'paused', 'canceled', 'expired']))->default('pending')->change();
             });
         }
 

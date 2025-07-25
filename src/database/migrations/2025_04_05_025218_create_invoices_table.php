@@ -17,7 +17,7 @@ return new class extends Migration
                 $table->timestamps();
 
                 $table->decimal('amount', 10, 2)->default(0.00)->comment('The total amount of the invoice');
-                $table->enum('status', ['paid', 'pending', 'failed'])->default('pending')->comment('The status of the invoice');
+                $table->enum('status', config('lyre-billing.invoice_statuses', ['paid', 'pending', 'failed']))->default('pending')->comment('The status of the invoice');
                 $table->dateTime('due_date')->nullable(false)->comment('The due date for the invoice payment');
 
                 $table->foreignId('subscription_id')->constrained('subscriptions')->onDelete('cascade');

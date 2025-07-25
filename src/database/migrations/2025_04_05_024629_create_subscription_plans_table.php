@@ -19,7 +19,7 @@ return new class extends Migration
 
                 $table->string('name');
                 $table->decimal('price', 10, 2)->default(0.00);
-                $table->enum('billing_cycle', ['per_minute', 'per_hour', 'per_day', 'per_week', 'monthly', 'quarterly', 'semi_annually', 'annually'])->default('monthly');
+                $table->enum('billing_cycle', config('lyre-billing.billing_cycles', ['per_minute', 'per_hour', 'per_day', 'per_week', 'monthly', 'quarterly', 'semi_annually', 'annually']))->default('monthly');
                 $table->unsignedInteger('trial_days')->default(0);
                 $table->jsonb('features')->nullable()->comment('JSONB column to store plan-specific features');
 

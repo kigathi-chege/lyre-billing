@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->timestamps();
 
-            $table->enum('provider', ['stripe', 'paypal', 'bank_transfer'])->default('stripe')->comment('The payment provider');
+            $table->enum('provider', config('lyre-billing.providers', ['mpesa', 'paystack', 'stripe', 'paypal', 'bank_transfer']))->default('paypal')->comment('The payment provider');
             $table->jsonb('details')->nullable()->comment('Encrypted payment details in JSONB format');
             $table->boolean('is_default')->default(false)->comment('Indicates if this is the default payment method');
 

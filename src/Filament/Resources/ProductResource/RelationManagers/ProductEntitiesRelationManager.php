@@ -17,11 +17,11 @@ class ProductEntitiesRelationManager extends RelationManager
     {
         return $form->schema([
             Forms\Components\Select::make('entity_type')
-                ->options([
-                    \App\Models\Exam::class => 'Exam',
-                    \App\Models\Course::class => 'Course',
-                ])
-                ->default(\App\Models\Exam::class)
+                // ->options([
+                //     \App\Models\Exam::class => 'Exam',
+                //     \App\Models\Course::class => 'Course',
+                // ])
+                // ->default(\App\Models\Exam::class)
                 ->searchable()
                 ->reactive()
                 ->afterStateUpdated(fn(callable $set) => $set('entity_id', null)),

@@ -2,8 +2,10 @@
 
 namespace Lyre\Billing\Models;
 
-use App\Scopes\OwnsScope;
-use App\Services\Paypal\Subscription as PaypalSubscription;
+use App\Models\User;
+
+use Lyre\Billing\Scopes\OwnsScope;
+// use App\Services\Paypal\Subscription as PaypalSubscription;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Lyre\Model;
 
@@ -33,10 +35,10 @@ class Subscription extends Model
         return $this->hasMany(SubscriptionReminder::class);
     }
 
-    public function paypalSubscription()
-    {
-        return PaypalSubscription::fromAspireSubscription($this);
-    }
+    // public function paypalSubscription()
+    // {
+    //     return PaypalSubscription::fromAspireSubscription($this);
+    // }
 
     public static function booted()
     {
