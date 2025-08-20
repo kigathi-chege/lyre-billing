@@ -18,7 +18,7 @@ class SubscriptionController extends Controller
 
     public function approved(string $subscription)
     {
-        return curate_response(
+        return __response(
             true,
             "Subscription Approved",
             // NOTE: Kigathi - June 6 2025 - this is commented out in favor of the webhook
