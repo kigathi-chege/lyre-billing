@@ -12,12 +12,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('subscription_plans')) {
-            Schema::create('subscription_plans', function (Blueprint $table) {
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'subscription_plans';
+
+        if (!Schema::hasTable($tableName)) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
                 $connection = Schema::getConnection();
                 $driver = $connection->getDriverName();
 
-                basic_fields($table, 'subscription_plans');
+                basic_fields($table, $tableName);
 
                 $table->string('name');
                 $table->decimal('price', 20, 6)->default(0.00);
@@ -27,7 +30,7 @@ return new class extends Migration
                 $table->string('status')->default('active');
 
                 $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-                $table->foreignId('billable_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('billable_id')->nullable()->constrained($prefix . 'billables')->nullOnDelete();
 
                 $table->index(['name']);
                 $table->index(['status']);
@@ -42,6 +45,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('subscription_plans');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'subscription_plans';
+
+        Schema::dropIfExists($tableName);
     }
 };

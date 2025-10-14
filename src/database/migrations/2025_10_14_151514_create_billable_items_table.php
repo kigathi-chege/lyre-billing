@@ -11,15 +11,25 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('billable_items', function (Blueprint $table) {
-            basic_fields($table, 'billable_items');
-            $table->string('name')->nullable();
-            $table->string("pricing_model")->default('free')->comment('The pricing model of the product, free, fixed, usage_based');
-            $table->string('status')->default('active');
-            $table->morphs('item');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'billable_items';
 
-            $table->foreignId('billable_id')->constrained()->cascadeOnDelete();
-        });
+        if (!Schema::hasTable($tableName)) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
+                basic_fields($table, $tableName);
+                $table->string('name')->nullable();
+                $table->string("pricing_model")->default('free')->comment('The pricing model of the product, free, fixed, usage_based');
+                $table->string('status')->default('active');
+                $table->morphs('item');
+
+                $table->foreignId('billable_id')->constrained($prefix . 'billables')->cascadeOnDelete();
+
+                $table->index(['name']);
+                $table->index(['status']);
+                $table->index(['item']);
+                $table->index(['billable_id']);
+            });
+        }
     }
 
     /**
@@ -27,6 +37,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('billable_items');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'billable_items';
+
+        Schema::dropIfExists($tableName);
     }
 };

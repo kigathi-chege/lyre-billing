@@ -11,16 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('billables', function (Blueprint $table) {
-            basic_fields($table, 'billables');
-            $table->string('name');
-            $table->string('status')->default('active');
-            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'billables';
 
-            $table->index(['name']);
-            $table->index(['status']);
-            $table->index(['user_id']);
-        });
+        if (!Schema::hasTable($tableName)) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName) {
+                basic_fields($table, $tableName);
+                $table->string('name');
+                $table->string('status')->default('active');
+                $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+
+                $table->index(['name']);
+                $table->index(['status']);
+                $table->index(['user_id']);
+            });
+        }
     }
 
     /**
@@ -28,6 +33,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('billables');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'billables';
+
+        Schema::dropIfExists($tableName);
     }
 };

@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('invoices')) {
-            Schema::create('invoices', function (Blueprint $table) {
-                basic_fields($table, 'invoices');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'invoices';
+
+        if (!Schema::hasTable($tableName)) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
+                basic_fields($table, $tableName);
 
                 $table->decimal('amount', 10, 2)->default(0.00)->comment('The total amount of the invoice');
                 $table->decimal('amount_paid', 20, 6)->default(0.00)->comment('The total amount paid by the client');
@@ -21,7 +24,10 @@ return new class extends Migration
                 $table->dateTime('due_date')->nullable(false)->comment('The due date for the invoice payment');
                 $table->string('invoice_number')->unique()->nullable()->comment('The unique invoice number');
 
-                $table->foreignId('subscription_id')->constrained()->nullOnDelete();
+                $table->foreignId('subscription_id')->constrained($prefix . 'subscriptions')->nullOnDelete();
+
+                $table->index(['status']);
+                $table->index(['subscription_id']);
             });
         }
     }
@@ -31,6 +37,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('invoices');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'invoices';
+
+        Schema::dropIfExists($tableName);
     }
 };

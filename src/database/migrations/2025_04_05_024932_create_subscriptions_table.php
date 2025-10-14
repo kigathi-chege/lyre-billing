@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('subscriptions')) {
-            Schema::create('subscriptions', function (Blueprint $table) {
-                basic_fields($table, 'subscriptions');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'subscriptions';
+
+        if (!Schema::hasTable($tableName)) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
+                basic_fields($table, $tableName);
 
                 $table->string('status')->default('pending')->comment('The status of the subscription, pending, active, paused, canceled, expired');
                 $table->dateTime('start_date')->nullable(false)->comment('The date when the subscription starts');
@@ -35,7 +38,7 @@ return new class extends Migration
                 $table->string('tax_id_number')->nullable()->comment('The tax id number of the address');
 
                 $table->foreignId('user_id')->constrained()->nullOnDelete();
-                $table->foreignId('subscription_plan_id')->constrained()->nullOnDelete();
+                $table->foreignId('subscription_plan_id')->constrained($prefix . 'subscription_plans')->nullOnDelete();
 
                 $table->index(['status']);
                 $table->index(['user_id']);
@@ -49,6 +52,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('subscriptions');
+        $prefix = config('lyre.table_prefix');
+        $tableName = $prefix . 'subscriptions';
+
+        Schema::dropIfExists($tableName);
     }
 };
