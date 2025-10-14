@@ -1,10 +1,13 @@
 {
   "name": "lyre/billing",
   "description": "Simple Laravel Subscriptions",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "library",
   "license": "MIT",
   "autoload": {
+    "files": [
+      "src/utils/helpers.php"
+    ],
     "psr-4": {
       "Lyre\\Billing\\": "src/"
     }
