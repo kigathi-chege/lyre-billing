@@ -13,35 +13,33 @@ return new class extends Migration
     {
         if (!Schema::hasTable('subscriptions')) {
             Schema::create('subscriptions', function (Blueprint $table) {
-                $table->id();
-                $table->timestamps();
+                basic_fields($table, 'subscriptions');
 
-                $table->enum('status', config('services.paypal.subscription_status'))->default('pending');
+                $table->string('status')->default('pending')->comment('The status of the subscription, pending, active, paused, canceled, expired');
                 $table->dateTime('start_date')->nullable(false)->comment('The date when the subscription starts');
                 $table->dateTime('end_date')->nullable()->comment('The date when the current subscription term ends');
                 $table->boolean('auto_renew')->default(true)->comment('Indicates if the subscription will auto-renew at the end of the term');
 
-                $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-                $table->foreignId('subscription_plan_id')->constrained('subscription_plans')->onDelete('cascade');
-            });
-        }
+                $table->string('address_line_1')->nullable()->comment('The first line of the address');
+                $table->string('address_line_2')->nullable()->comment('The second line of the address');
+                $table->string('admin_area_2')->nullable()->comment('The city/town of the address');
+                $table->string('admin_area_1')->nullable()->comment('The state/province of the address');
+                $table->string('postal_code')->nullable()->comment('The postal code of the address');
+                $table->string('country_code')->nullable()->comment('The country code of the address');
+                $table->string('phone')->nullable()->comment('The phone number of the address');
+                $table->string('email')->nullable()->comment('The email address of the address');
+                $table->string('name')->nullable()->comment('The name of the address');
+                $table->string('company')->nullable()->comment('The company name of the address');
+                $table->string('tax_id')->nullable()->comment('The tax id of the address');
+                $table->string('tax_id_type')->nullable()->comment('The tax id type of the address');
+                $table->string('tax_id_number')->nullable()->comment('The tax id number of the address');
 
-        if (!Schema::hasColumn('subscriptions', 'paypal_id')) {
-            Schema::table('subscriptions', function (Blueprint $table) {
-                $table->string('paypal_id')->nullable();
-            });
-        }
+                $table->foreignId('user_id')->constrained()->nullOnDelete();
+                $table->foreignId('subscription_plan_id')->constrained()->nullOnDelete();
 
-        if (Schema::hasColumn('subscriptions', 'status')) {
-            Schema::table('subscriptions', function (Blueprint $table) {
-                $table->enum('status', config('lyre-billing.subscription_statuses', ['pending', 'active', 'paused', 'canceled', 'expired']))->default('pending')->change();
-            });
-        }
-
-        if (!Schema::hasColumn('subscriptions', 'link')) {
-            Schema::table('subscriptions', function (Blueprint $table) {
-                $table->string('link')->nullable();
-                $table->text('description')->nullable();
+                $table->index(['status']);
+                $table->index(['user_id']);
+                $table->index(['subscription_plan_id']);
             });
         }
     }

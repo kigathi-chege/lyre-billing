@@ -25,16 +25,6 @@ class Subscription extends Model
         return $this->belongsTo(SubscriptionPlan::class, 'subscription_plan_id');
     }
 
-    public function subscriptionProducts()
-    {
-        return $this->hasMany(SubscriptionProduct::class);
-    }
-
-    public function subscriptionReminders()
-    {
-        return $this->hasMany(SubscriptionReminder::class);
-    }
-
     // public function paypalSubscription()
     // {
     //     return PaypalSubscription::fromAspireSubscription($this);

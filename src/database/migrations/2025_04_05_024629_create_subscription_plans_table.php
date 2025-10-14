@@ -14,42 +14,25 @@ return new class extends Migration
     {
         if (!Schema::hasTable('subscription_plans')) {
             Schema::create('subscription_plans', function (Blueprint $table) {
-                $table->id();
-                $table->timestamps();
+                $connection = Schema::getConnection();
+                $driver = $connection->getDriverName();
+
+                basic_fields($table, 'subscription_plans');
 
                 $table->string('name');
-                $table->decimal('price', 10, 2)->default(0.00);
-                $table->enum('billing_cycle', config('lyre-billing.billing_cycles', ['per_minute', 'per_hour', 'per_day', 'per_week', 'monthly', 'quarterly', 'semi_annually', 'annually']))->default('monthly');
+                $table->decimal('price', 20, 6)->default(0.00);
+                $table->string('billing_cycle')->default('monthly')->comment('The billing cycle of the subscription plan, per_minute, per_hour, per_day, per_week, monthly, quarterly, semi_annually, annually');
                 $table->unsignedInteger('trial_days')->default(0);
-                $table->jsonb('features')->nullable()->comment('JSONB column to store plan-specific features');
+                $table->{$driver === 'pgsql' ? 'jsonb' : 'json'}('features')->nullable()->comment('JSONB column to store plan-specific features');
+                $table->string('status')->default('active');
 
-                $table->morphs('product');
-            });
-        }
+                $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('billable_id')->nullable()->constrained()->nullOnDelete();
 
-        if (!Schema::hasColumn('subscription_plans', 'status')) {
-            Schema::table('subscription_plans', function (Blueprint $table) {
-                $table->enum('status', ['active', 'inactive'])->default('active');
-            });
-        }
-
-        if (!Schema::hasColumn('subscription_plans', 'paypal_product_id')) {
-            Schema::table('subscription_plans', function (Blueprint $table) {
-                $table->string('paypal_product_id')->nullable();
-            });
-        }
-
-        if (!Schema::hasColumn('subscription_plans', 'paypal_plan_id')) {
-            Schema::table('subscription_plans', function (Blueprint $table) {
-                $table->string('paypal_plan_id')->nullable();
-            });
-        }
-
-        if (!Schema::hasColumn('subscription_plans', 'link')) {
-            Schema::table('subscription_plans', function (Blueprint $table) {
-                $table->string('link')->nullable();
-                $table->string('slug')->nullable()->unique()->index();
-                $table->text('description')->nullable();
+                $table->index(['name']);
+                $table->index(['status']);
+                $table->index(['user_id']);
+                $table->index(['billable_id']);
             });
         }
     }

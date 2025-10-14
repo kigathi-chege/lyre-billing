@@ -2,48 +2,48 @@
 
 namespace App\Services\Paypal;
 
-use App\Models\Subscription as ModelsSubscription;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Lyre\Billing\Models\Subscription as ModelsSubscription;
 
 class Subscription
 {
-    public static function fromAspireSubscription(ModelsSubscription $subscription, $invoiceNumber = null)
+    public static function fromSubscription(ModelsSubscription $subscription, $invoiceNumber = null)
     {
-        if ($subscription->paypal_id) {
-            return self::getSubscriptionDetails($subscription->paypal_id);
+        if ($subscription->metadata['paypal_subscription_id']) {
+            return self::getSubscriptionDetails($subscription->metadata['paypal_subscription_id']);
         }
 
         $time = now()->addMinutes(5);
         $subscription->update(['start_time' => $time]);
 
         $payload = [
-            'plan_id' => $subscription->subscriptionPlan->paypal_plan_id,
-            'start_time' => $time->setTimezone('UTC')->format('Y-m-d\TH:i:s\Z'),
+            'plan_id' => $subscription->subscriptionPlan->metadata['paypal_plan_id'],
+            'start_time' => $time->setTimezone(config('app.timezone'))->format('Y-m-d\TH:i:s\Z'),
             'custom_id' => $invoiceNumber,
             'quantity' => '1',
             'subscriber' => [
                 'name' => [
-                    'given_name' => explode(" ", $subscription->user->name)[0],
-                    'surname' => explode(" ", $subscription->user->name)[1] ?? explode(" ", $subscription->user->name)[0],
+                    'given_name' => explode(" ", $subscription->name)[0],
+                    'surname' => explode(" ", $subscription->name)[1] ?? explode(" ", $subscription->name)[0],
                 ],
-                'email_address' => $subscription->user->email,
+                'email_address' => $subscription->email,
                 'shipping_address' => [
-                    'name' => ['full_name' => $subscription->user->name],
+                    'name' => ['full_name' => $subscription->name],
                     'address' => [
-                        'address_line_1' => $subscription->user->account->address_line_1 ?? '1234 Elm Street',
-                        'address_line_2' => $subscription->user->account->address_line_2 ?? 'Suite 100',
-                        'admin_area_2' => $subscription->user->account->admin_area_2 ?? 'San Jose',
-                        'admin_area_1' => $subscription->user->account->admin_area_1 ?? 'CA',
-                        'postal_code' => $subscription->user->account->postal_code ?? '95131',
-                        'country_code' => $subscription->user->account->country_code ?? 'US',
+                        'address_line_1' => $subscription->address_line_1 ?? '1234 Elm Street',
+                        'address_line_2' => $subscription->address_line_2 ?? 'Suite 100',
+                        'admin_area_2' => $subscription->admin_area_2 ?? 'San Jose',
+                        'admin_area_1' => $subscription->admin_area_1 ?? 'CA',
+                        'postal_code' => $subscription->postal_code ?? '95131',
+                        'country_code' => $subscription->country_code ?? 'US',
                     ],
                 ],
             ],
             'application_context' => [
-                'brand_name' => 'Aspire Career Consultants',
-                'locale' => 'en-US',
+                'brand_name' => config('app.name'),
+                'locale' => config('app.locale'),
                 'shipping_preference' => 'SET_PROVIDED_ADDRESS',
                 'user_action' => 'SUBSCRIBE_NOW',
                 'payment_method' => [
@@ -60,7 +60,7 @@ class Subscription
         try {
             $paypalSubscription = self::createPaypalSubscription($payload);
             Log::info("PAYPAL SUBSCRIPTION", [$paypalSubscription]);
-            $subscription->paypal_id = $paypalSubscription['id'];
+            $subscription->metadata['paypal_subscription_id'] = $paypalSubscription['id'];
             $subscription->save();
 
             $approvalLink = collect($paypalSubscription['links'])->where('rel', 'approve')->first();
@@ -71,8 +71,6 @@ class Subscription
             report($e);
         }
     }
-
-
 
     public static function createPaypalSubscription(array $payload)
     {

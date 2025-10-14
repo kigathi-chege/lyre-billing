@@ -2,34 +2,35 @@
 
 namespace App\Services\Paypal;
 
-use App\Models\SubscriptionPlan as ModelsSubscriptionPlan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Lyre\Billing\Models\SubscriptionPlan as ModelsSubscriptionPlan;
 
 class SubscriptionPlan
 {
-    public static function fromAspireSubscriptionPlan(ModelsSubscriptionPlan $aspireSubscription)
+    public static function fromSubscriptionPlan(ModelsSubscriptionPlan $modelSubscription)
     {
-        if (!$aspireSubscription->paypal_product_id) {
+        if (!$modelSubscription->metadata['paypal_product_id']) {
             $product = Catalog::createProduct(
-                $aspireSubscription->product->name,
-                $aspireSubscription->product->description ? strip_tags($aspireSubscription->product->description) : $aspireSubscription->product->name,
+                $modelSubscription->billable->name,
+                $modelSubscription->billable->description ? strip_tags($modelSubscription->billable->description) : $modelSubscription->billable->name,
                 "SERVICE",
                 'EDUCATIONAL_AND_TEXTBOOKS',
                 // asset('pop-logo.svg'),
+                // TODO: Kigathi - October 14 2025 - Should use logo and app url from the settings
                 "https://aspirecareerconsultants.com/_app/immutable/assets/web.DG74slDU.svg",
                 "https://aspirecareerconsultants.com"
             );
 
-            $aspireSubscription->paypal_product_id = $product['id'];
-            $aspireSubscription->save();
+            $modelSubscription->metadata['paypal_product_id'] = $product['id'];
+            $modelSubscription->save();
         }
 
-        $trialCycle = $aspireSubscription->trial_days > 0 ? [
+        $trialCycle = $modelSubscription->trial_days > 0 ? [
             "frequency" => [
                 "interval_unit" => "DAY",
-                "interval_count" => $aspireSubscription->trial_days
+                "interval_count" => $modelSubscription->trial_days
             ],
             "tenure_type" => "TRIAL",
             "sequence" => 1,
@@ -45,7 +46,7 @@ class SubscriptionPlan
         $regularCycles = [
             [
                 "frequency" => [
-                    "interval_unit" => match ($aspireSubscription->billing_cycle) {
+                    "interval_unit" => match ($modelSubscription->billing_cycle) {
                         'per_day' => "DAY",
                         'per_week' => "WEEK",
                         'monthly' => "MONTH",
@@ -58,7 +59,7 @@ class SubscriptionPlan
                 "total_cycles" => 0,
                 "pricing_scheme" => [
                     "fixed_price" => [
-                        "value" => $aspireSubscription->price,
+                        "value" => $modelSubscription->price,
                         "currency_code" => "USD"
                     ]
                 ]
@@ -70,9 +71,9 @@ class SubscriptionPlan
         }
 
         $payload = [
-            "product_id" => $aspireSubscription->paypal_product_id,
-            "name" => $aspireSubscription->name,
-            "description" => $aspireSubscription->description ? Str::limit(strip_tags($aspireSubscription->description), 120) : $aspireSubscription->name,
+            "product_id" => $modelSubscription->metadata['paypal_product_id'],
+            "name" => $modelSubscription->name,
+            "description" => $modelSubscription->description ? Str::limit(strip_tags($modelSubscription->description), 120) : $modelSubscription->name,
             // "status" => $aspireSubscription->status == 'active' ? 'ACTIVE' : "INACTIVE",
             "status" => 'ACTIVE',
             "billing_cycles" => $regularCycles,
@@ -94,8 +95,8 @@ class SubscriptionPlan
         try {
             $plan = self::createPaypalPlan($payload);
             Log::info("PAYPAL SUBSCRIPTION PLAN", [$plan]);
-            $aspireSubscription->paypal_plan_id = $plan['id'];
-            $aspireSubscription->save();
+            $modelSubscription->metadata['paypal_plan_id'] = $plan['id'];
+            $modelSubscription->save();
         } catch (\Exception $e) {
             report($e);
         }

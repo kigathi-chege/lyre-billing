@@ -12,14 +12,20 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('payment_methods', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+            $connection = Schema::getConnection();
+            $driver = $connection->getDriverName();
 
-            $table->enum('provider', config('lyre-billing.providers', ['mpesa', 'paystack', 'stripe', 'paypal', 'bank_transfer']))->default('paypal')->comment('The payment provider');
-            $table->jsonb('details')->nullable()->comment('Encrypted payment details in JSONB format');
+            basic_fields($table, 'payment_methods');
+
+            $table->string('name');
+            $table->{$driver === 'pgsql' ? 'jsonb' : 'json'}('details')->nullable()->comment('Payment method details, e.g., secret key, public key, etc');
             $table->boolean('is_default')->default(false)->comment('Indicates if this is the default payment method');
 
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+
+            $table->index(['name']);
+            $table->index(['is_default']);
+            $table->index(['user_id']);
         });
     }
 

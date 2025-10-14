@@ -13,32 +13,15 @@ return new class extends Migration
     {
         if (!Schema::hasTable('invoices')) {
             Schema::create('invoices', function (Blueprint $table) {
-                $table->id();
-                $table->timestamps();
+                basic_fields($table, 'invoices');
 
                 $table->decimal('amount', 10, 2)->default(0.00)->comment('The total amount of the invoice');
-                $table->enum('status', config('lyre-billing.invoice_statuses', ['paid', 'pending', 'failed']))->default('pending')->comment('The status of the invoice');
+                $table->decimal('amount_paid', 20, 6)->default(0.00)->comment('The total amount paid by the client');
+                $table->string('status')->default('pending')->comment('The status of the invoice, paid, pending, failed');
                 $table->dateTime('due_date')->nullable(false)->comment('The due date for the invoice payment');
-
-                $table->foreignId('subscription_id')->constrained('subscriptions')->onDelete('cascade');
-            });
-        }
-
-        if (!Schema::hasColumn('invoices', 'amount_paid')) {
-            Schema::table('invoices', function (Blueprint $table) {
-                $table->decimal('amount_paid', 10, 2)->default(0.00)->comment('The total amount paid by the client');
-            });
-        }
-
-        if (Schema::hasColumn('invoices', 'due_date')) {
-            Schema::table('invoices', function (Blueprint $table) {
-                $table->dateTime('due_date')->nullable()->comment('The due date for the invoice payment')->change();
-            });
-        }
-
-        if (!Schema::hasColumn('invoices', 'invoice_number')) {
-            Schema::table('invoices', function (Blueprint $table) {
                 $table->string('invoice_number')->unique()->nullable()->comment('The unique invoice number');
+
+                $table->foreignId('subscription_id')->constrained()->nullOnDelete();
             });
         }
     }

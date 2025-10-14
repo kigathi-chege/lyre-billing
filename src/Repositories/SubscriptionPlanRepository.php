@@ -3,12 +3,10 @@
 namespace Lyre\Billing\Repositories;
 
 use Lyre\Billing\Http\Resources\SubscriptionPlan as ResourcesSubscriptionPlan;
-// use Lyre\Billing\Models\Exam;
 use Lyre\Billing\Models\Invoice;
 use Lyre\Billing\Models\Subscription;
 use Lyre\Repository;
 use Lyre\Billing\Models\SubscriptionPlan;
-use Lyre\Billing\Models\SubscriptionProduct;
 use Lyre\Billing\Contracts\SubscriptionPlanRepositoryInterface;
 // use App\Services\Paypal\Subscription as PaypalSubscription;
 use Lyre\Exceptions\CommonException;
@@ -62,22 +60,5 @@ class SubscriptionPlanRepository extends Repository implements SubscriptionPlanR
         // $links = PaypalSubscription::fromAspireSubscription($subscription, $invoice->invoice_number);
 
         // return ResourcesSubscriptionPlan::make($plan)->additional(['links' => $links]);
-    }
-
-    private static function subscribeToProduct(Subscription $subscription, array $productIds, string $productType = 'exam')
-    {
-        if (count($productIds) > 0) {
-            foreach ($productIds as $productId) {
-                if ($productId) {
-                    // TODO: Kigathi - June 6 2025 - Handle what happens when the user is already subscribed to this product in another subscription
-                    SubscriptionProduct::firstOrCreate([
-                        'subscription_id' => $subscription->id,
-                        'product_id' => $productId,
-                        // 'product_type' => $productType == 'exam' ? Exam::class : $productType
-                        'product_type' => $productType
-                    ]);
-                }
-            }
-        }
     }
 }

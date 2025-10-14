@@ -19,10 +19,6 @@ class LyreBillingServiceProvider extends ServiceProvider
             __DIR__ . '/../database/migrations' => database_path('migrations'),
         ]);
 
-        $this->publishes([
-            __DIR__ . '/../config/lyre-billing.php' => config_path('lyre-billing.php'),
-        ]);
-
         $this->loadRoutesFrom(__DIR__ . '/../routes/api.php');
     }
 }
