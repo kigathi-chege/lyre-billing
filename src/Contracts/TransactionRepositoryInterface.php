@@ -1,6 +1,6 @@
 <?php
 
-namespace Lyre\Billing\Contacts;
+namespace Lyre\Billing\Contracts;
 
 use Lyre\Interface\RepositoryInterface;
 

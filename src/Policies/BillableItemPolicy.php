@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Policies;
+namespace Lyre\Billing\Policies;
 
-use App\Models\BillableItem;
+use Lyre\Billing\Models\BillableItem;
 use Lyre\Policy;
 
 class BillableItemPolicy extends Policy

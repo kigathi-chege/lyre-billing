@@ -192,6 +192,6 @@ class SubscriptionPlanResource extends Resource
     {
         // $permissions = config('filament-shield.permission_prefixes.resource');
         // TODO: Kigathi - May 4 2025 - Users should only view this navigation if they have at least one more permission than view and viewAny
-        return Auth::user()->can('update', Auth::user(), SubscriptionPlan::class);
+        return Auth::user()->can('update', SubscriptionPlan::class);
     }
 }

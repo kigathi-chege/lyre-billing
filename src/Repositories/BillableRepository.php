@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Repositories;
+namespace Lyre\Billing\Repositories;
 
 use Lyre\Repository;
-use App\Models\Billable;
-use App\Repositories\Interface\BillableRepositoryInterface;
+use Lyre\Billing\Models\Billable;
+use Lyre\Billing\Contracts\BillableRepositoryInterface;
 
 class BillableRepository extends Repository implements BillableRepositoryInterface
 {

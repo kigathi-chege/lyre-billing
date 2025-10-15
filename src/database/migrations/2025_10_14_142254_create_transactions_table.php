@@ -24,6 +24,7 @@ return new class extends Migration
                 $table->string('currency')->default('KES');
                 $table->text('raw_response')->nullable()->comment('The raw response from the payment provider');
                 $table->text('raw_callback')->nullable()->comment('The raw callback from the payment provider');
+                $table->text('raw_request')->nullable()->comment('The raw request to the payment provider');
 
                 $table->foreignId('invoice_id')->nullable()->constrained($prefix . 'invoices')->nullOnDelete();
                 $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
