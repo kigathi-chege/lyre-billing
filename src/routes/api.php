@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::apiResources([
     'subscriptions' => Controllers\SubscriptionController::class,
     'subscriptionplans' => Controllers\SubscriptionPlanController::class,
+    'paymentmethods' => Controllers\PaymentMethodController::class,
 ]);
 
 Route::get('/subscriptionplans/{plan}/subscribe/', [Controllers\SubscriptionPlanController::class, 'subscribe']);

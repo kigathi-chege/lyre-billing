@@ -1,7 +1,7 @@
 {
   "name": "lyre/billing",
   "description": "Simple Laravel Subscriptions",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "library",
   "license": "MIT",
   "autoload": {
@@ -21,9 +21,6 @@
   "minimum-stability": "dev",
   "require": {
     "php": "^8.2",
-    "filament/filament": "^3.3",
-    "codeat3/blade-google-material-design-icons": "^1.20",
-    "valentin-morice/filament-json-column": "^2.0",
     "lyre/lyre": "^1.1"
   },
   "extra": {
