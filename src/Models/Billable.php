@@ -19,4 +19,9 @@ class Billable extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function subscriptionPlanBillables()
+    {
+        return $this->hasMany(SubscriptionPlanBillable::class);
+    }
 }

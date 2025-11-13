@@ -24,18 +24,16 @@ return new class extends Migration
 
                 $table->string('name');
                 $table->decimal('price', 20, 6)->default(0.00);
+                $table->string('currency', 3)->comment('Currency of the price')->default('KES');
                 $table->string('billing_cycle')->default('monthly')->comment('The billing cycle of the subscription plan, per_minute, per_hour, per_day, per_week, monthly, quarterly, semi_annually, annually');
                 $table->unsignedInteger('trial_days')->default(0);
-                $table->{$driver === 'pgsql' ? 'jsonb' : 'json'}('features')->nullable()->comment('JSONB column to store plan-specific features');
                 $table->string('status')->default('active');
 
                 $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-                $table->foreignId('billable_id')->nullable()->constrained($prefix . 'billables')->nullOnDelete();
 
                 $table->index(['name']);
                 $table->index(['status']);
                 $table->index(['user_id']);
-                $table->index(['billable_id']);
             });
         }
     }

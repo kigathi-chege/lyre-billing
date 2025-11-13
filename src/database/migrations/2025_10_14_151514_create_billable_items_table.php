@@ -20,7 +20,15 @@ return new class extends Migration
                 $table->string('name')->nullable();
                 $table->string("pricing_model")->default('free')->comment('The pricing model of the product, free, fixed, usage_based');
                 $table->string('status')->default('active');
-                $table->morphs('item');
+
+                $table->string("item_type")->nullable();
+                $table->string("item_id")->nullable();
+                $table->index(["item_type", "item_id"]);
+
+                $table->integer('usage_limit')->nullable()->comment('max usage per period for quota-based plans');
+                $table->decimal('unit_price', 10, 2)->nullable()->comment('for usage-based billing');
+                $table->string('currency', 3)->nullable()->comment('currency for usage-based billing');
+                $table->string('reset_period')->nullable()->comment('reset period for billable usage, null for no reset');
 
                 $table->foreignId('billable_id')->constrained($prefix . 'billables')->cascadeOnDelete();
 

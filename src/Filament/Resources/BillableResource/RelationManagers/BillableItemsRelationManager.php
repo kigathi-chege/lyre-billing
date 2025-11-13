@@ -14,6 +14,21 @@ class BillableItemsRelationManager extends RelationManager
 {
     protected static string $relationship = 'billableItems';
 
+    /**
+     * Update metadata field with billable method information
+     */
+    protected function updateMetadata(string $class, callable $set): void
+    {
+        $metadata = collect(get_billable_methods())
+            ->firstWhere('class', $class);
+
+        if ($metadata) {
+            $set('metadata', $metadata);
+        } else {
+            $set('metadata', null);
+        }
+    }
+
     public function form(Form $form): Form
     {
         return $form
@@ -25,10 +40,27 @@ class BillableItemsRelationManager extends RelationManager
                     ->required()
                     ->options([
                         'free' => 'Free',
-                        'fixed' => 'Fixed',
+                        // 'fixed' => 'Fixed',
+                        'quota_based' => 'Quota Based',
                         'usage_based' => 'Usage Based',
                     ])
-                    ->default('free'),
+                    ->default('free')
+                    ->reactive(),
+                Forms\Components\TextInput::make('usage_limit')
+                    ->label('Usage Limit')
+                    ->numeric()
+                    ->nullable()
+                    ->visible(fn(callable $get) => $get('pricing_model') === 'quota_based'),
+                Forms\Components\TextInput::make('unit_price')
+                    ->label('Unit Price')
+                    ->numeric()
+                    ->nullable()
+                    ->visible(fn(callable $get) => $get('pricing_model') === 'usage_based'),
+                Forms\Components\TextInput::make('currency')
+                    ->label('Currency')
+                    ->maxLength(3)
+                    ->nullable()
+                    ->visible(fn(callable $get) => $get('pricing_model') === 'usage_based'),
                 Forms\Components\Select::make('status')
                     ->required()
                     ->options([
@@ -36,15 +68,48 @@ class BillableItemsRelationManager extends RelationManager
                         'inactive' => 'Inactive',
                     ])
                     ->default('active'),
-                Forms\Components\TextInput::make('item_type')
-                    ->label('Item Type (Model Class)')
-                    ->helperText('e.g., App\Models\Product')
-                    ->maxLength(255)
+                Forms\Components\Select::make('item_type')
+                    ->label('Item Type')
+                    ->options(fn() => [
+                        'model' => 'Model',
+                        'function' => 'Function'
+                    ])
+                    ->searchable()
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        // Clear item_id and metadata when item_type changes
+                        $set('item_id', null);
+                        $set('metadata', null);
+                    })
                     ->nullable(),
-                Forms\Components\TextInput::make('item_id')
+                Forms\Components\Select::make('item_id')
                     ->label('Item ID')
-                    ->numeric()
+                    ->options(function (callable $get) {
+                        $itemType = $get('item_type');
+
+                        if ($itemType == 'function') {
+                            return collect(get_billable_methods())
+                                ->mapWithKeys(fn($value) => [$value['class'] => $value['args'][0]])
+                                ->all();
+                        }
+
+                        return collect(get_model_classes())
+                            ->mapWithKeys(fn($value, $key) => [$value => $key])
+                            ->all();
+                    })
+                    ->searchable()
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, callable $get, callable $set) {
+                        $itemType = $get('item_type');
+
+                        if ($itemType === 'function' && $state) {
+                            $this->updateMetadata($state, $set);
+                        } else {
+                            $set('metadata', null);
+                        }
+                    })
                     ->nullable(),
+                Forms\Components\Hidden::make('metadata'),
             ]);
     }
 
@@ -62,18 +127,32 @@ class BillableItemsRelationManager extends RelationManager
                         'warning' => 'fixed',
                         'info' => 'usage_based',
                     ]),
+                Tables\Columns\TextColumn::make('item_type')
+                    ->label('Item Type')
+                    ->badge()
+                    ->colors([
+                        'success' => 'model',
+                        'info' => 'function',
+                    ])
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('item_id')
+                    ->label('Item ID')
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('usage_limit')
+                    ->label('Usage Limit')
+                    ->numeric()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('unit_price')
+                    ->label('Unit Price')
+                    ->numeric()
+                    ->money(fn($record) => $record->currency ?? 'USD')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->colors([
                         'success' => 'active',
                         'danger' => 'inactive',
                     ]),
-                Tables\Columns\TextColumn::make('item_type')
-                    ->label('Item Type')
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('item_id')
-                    ->label('Item ID')
-                    ->toggleable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('pricing_model')

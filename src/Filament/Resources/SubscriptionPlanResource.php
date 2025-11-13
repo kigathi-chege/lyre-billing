@@ -37,10 +37,11 @@ class SubscriptionPlanResource extends Resource
                 Forms\Components\TextInput::make('price')
                     ->required()
                     ->numeric()
-                    ->default(0.00)
-                    ->rule('gt:0')
-                    ->prefix('$')
-                    ->helperText('Price must be greater than $0.00'),
+                    ->default(0.00),
+                Forms\Components\TextInput::make('currency')
+                    ->required()
+                    ->maxLength(3)
+                    ->default('KES'),
                 Forms\Components\Select::make('billing_cycle')
                     ->required()
                     ->options([
@@ -59,63 +60,13 @@ class SubscriptionPlanResource extends Resource
                     ->required()
                     ->numeric()
                     ->default(0),
-                Forms\Components\Select::make('product_type')
-                    ->options([
-                        // \App\Models\Exam::class => 'Exam',
-                        // \App\Models\Course::class => 'Course',
-                        // \App\Models\Product::class => 'Custom Product',
-                    ])
-                    // ->default(\App\Models\Exam::class)
-                    ->searchable()
-                    ->reactive()
-                    ->afterStateUpdated(fn(callable $set) => $set('product_id', null)),
-                Forms\Components\Select::make('product_id')
-                    ->label('Product')
-                    ->helperText('Please choose a type first')
-                    ->required()
-                    ->options(function (callable $get) {
-                        $productType = $get('product_type');
-
-                        if (!$productType || !class_exists($productType)) {
-                            return [];
-                        }
-
-                        // Customize pluck columns if needed, here assuming 'name' & 'id'
-                        return $productType::query()
-                            ->pluck('name', 'id')
-                            ->toArray();
-                    })
-                    ->searchable()
-                    ->reactive()
-                    ->required(),
-                TiptapEditor::make('description')
-                    ->columnSpanFull()
-                    ->required(),
-                Forms\Components\Select::make('categories')
-                    ->label('Categories')
-                    ->relationship(
-                        name: 'facetValues',
-                        titleAttribute: 'name',
-                        // modifyQueryUsing: fn(\Illuminate\Database\Eloquent\Builder $query) => $query->withTrashed(),
-                        // TODO: Kigathi - May 18 2025 - This works because Articles is the only entity we are currently using FacetValues on
-                        modifyQueryUsing: fn() => \Lyre\Facet\Models\FacetValue::query(),
-                    )
-                    ->multiple()
-                    ->preload()
-                    ->searchable()
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->name} ({$record->facet_name})")
-                    ->saveRelationshipsUsing(static function ($component, $record, $state) {
-                        if (!empty($state)) {
-                            $record->attachFacetValues($state);
-                        }
-                    }),
-                Forms\Components\ToggleButtons::make('status')
+                Forms\Components\Select::make('status')
                     ->options([
                         'active' => 'Active',
                         'inactive' => 'Inactive',
-                    ])
-                    ->inline(),
-                JsonColumn::make('features'),
+                    ]),
+                TiptapEditor::make('description')
+                    ->columnSpanFull(),
 
             ]);
     }
@@ -152,8 +103,12 @@ class SubscriptionPlanResource extends Resource
                 Tables\Columns\TextColumn::make('trial_days')
                     ->numeric()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('product.name')
-                    ->numeric()
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->colors([
+                        'active' => 'success',
+                        'inactive' => 'danger',
+                    ])
                     ->sortable(),
             ])
             ->filters([
@@ -175,7 +130,7 @@ class SubscriptionPlanResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\SubscriptionPlanBillablesRelationManager::class,
         ];
     }
 

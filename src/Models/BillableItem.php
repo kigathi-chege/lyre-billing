@@ -10,6 +10,10 @@ class BillableItem extends Model
 {
     use HasFactory;
 
+    protected $casts = [
+        'metadata' => 'array',
+    ];
+
     public function billable()
     {
         return $this->belongsTo(Billable::class);
@@ -18,5 +22,10 @@ class BillableItem extends Model
     public function item(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function billableUsages()
+    {
+        return $this->hasMany(BillableUsage::class);
     }
 }

@@ -12,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use FilamentTiptapEditor\TiptapEditor;
 use Illuminate\Support\Facades\Auth;
 
 class BillableResource extends Resource
@@ -43,6 +44,10 @@ class BillableResource extends Resource
                     ->searchable()
                     ->preload()
                     ->nullable(),
+                Forms\Components\TextInput::make('link')
+                    ->maxLength(255),
+                TiptapEditor::make('description')
+                    ->columnSpanFull(),
             ]);
     }
 

@@ -28,6 +28,24 @@ return new class extends Migration
 
                 $table->index(['status']);
                 $table->index(['subscription_id']);
+
+                // TODO: Kigathi - 11 November 2025 - Should add the following functionalities:
+
+                // $table->date('billing_period_start');
+                // $table->date('billing_period_end');
+
+                // Schema::create("{$prefix}invoice_items", function (Blueprint $table) use ($prefix) {
+                //     basic_fields($table);
+
+                //     $table->foreignId('invoice_id')->constrained("{$prefix}invoices")->cascadeOnDelete();
+                //     $table->morphs('billable_item');
+                //     $table->string('description')->nullable();
+
+                //     $table->unsignedDecimal('quantity', 20, 6)->default(1);
+                //     $table->unsignedDecimal('unit_price', 20, 6);
+                //     $table->unsignedDecimal('total_price', 20, 6);
+                // });
+
             });
         }
     }
