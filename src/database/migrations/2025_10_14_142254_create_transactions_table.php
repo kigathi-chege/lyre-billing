@@ -29,12 +29,14 @@ return new class extends Migration
                 $table->foreignId('invoice_id')->nullable()->constrained($prefix . 'invoices')->nullOnDelete();
                 $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
                 $table->foreignId('payment_method_id')->constrained($prefix . 'payment_methods')->nullOnDelete();
+                $table->string('order_reference')->nullable()->comment('Reference to Commerce Order for order payments');
 
                 $table->index(['uuid']);
                 $table->index(['status']);
                 $table->index(['invoice_id']);
                 $table->index(['user_id']);
                 $table->index(['payment_method_id']);
+                $table->index(['order_reference']);
             });
         }
     }

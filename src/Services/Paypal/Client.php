@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Paypal;
+namespace Lyre\Billing\Services\Paypal;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -21,9 +21,16 @@ class Client
             return Cache::get('paypal_access_token');
         }
 
+        $paymentMethod = \Lyre\Billing\Models\PaymentMethod::get('paypal');
+
+        $clientId = $paymentMethod?->details['PAYPAL_CLIENT_ID'] ?? config('services.paypal.client_id');
+        $secret = $paymentMethod?->details['PAYPAL_SECRET'] ?? config('services.paypal.secret');
+        $baseUri = $paymentMethod?->details['PAYPAL_BASE_URI'] ?? config('services.paypal.base_uri');
+        $oauthUri = $paymentMethod?->details['PAYPAL_OAUTH_URI'] ?? config('services.paypal.oauth_uri');
+
         $response = Http::asForm()
-            ->withBasicAuth(config('services.paypal.client_id'), config('services.paypal.secret'))
-            ->post(config('services.paypal.base_uri') . config('services.paypal.oauth_uri'), [
+            ->withBasicAuth($clientId, $secret)
+            ->post($baseUri . $oauthUri, [
                 'grant_type' => 'client_credentials',
             ]);
 

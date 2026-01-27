@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Lyre\Billing\Models\PaymentMethod;
 use Lyre\Billing\Models\Transaction;
+use Lyre\Billing\Contracts\TransactionRepositoryInterface;
 
 class Client
 {
@@ -60,7 +61,7 @@ class Client
         throw new \Exception('Unable to retrieve Mpesa access token.');
     }
 
-    public function express($partyA = null, $phoneNumber, $amount, $paymentMethod = null)
+    public function express($partyA = null, $phoneNumber, $amount, $paymentMethod = null, $orderReference = null)
     {
         if ($paymentMethod) {
             $this->paymentMethod = $paymentMethod;
@@ -90,7 +91,7 @@ class Client
             "PartyB" => $this->paymentMethod->details['MPESA_PARTY_B'] ?? $this->paymentMethod->details['MPESA_BUSINESS_SHORT_CODE'], // The organization receiving the money
             "PhoneNumber" => $phoneNumber, // The phone receiving the STK push
             "CallBackURL" => config('lyre.billing.mpesa.webhook'),
-            "AccountReference" => $this->paymentMethod->details['MPESA_ACCOUNT_REFERENCE'] ?? config('app.name'), // Value displayed to customer in the STK Pin Prompt along with Business Name
+            "AccountReference" => $orderReference ?? $this->paymentMethod->details['MPESA_ACCOUNT_REFERENCE'] ?? config('app.name'), // Value displayed to customer in the STK Pin Prompt along with Business Name
             "TransactionDesc" => "Payment of X"
         ];
 
@@ -100,13 +101,23 @@ class Client
             ])
             ->post(config('services.mpesa.base_uri') . config('services.mpesa.express_uri'), $data);
 
-        transactionRepository()->create([
+        $transactionData = [
             'payment_method_id' => $this->paymentMethod->id,
             'amount' => $amount,
             'raw_request' => json_encode($data),
             'raw_response' => json_encode($response->json()),
             'user_id' => auth()->id() ?? null,
-        ]);
+        ];
+
+        // Add order_reference if provided
+        if ($orderReference && class_exists(\Lyre\Commerce\Models\Order::class)) {
+            $order = \Lyre\Commerce\Models\Order::where('reference', $orderReference)->first();
+            if ($order) {
+                $transactionData['order_reference'] = $order->reference;
+            }
+        }
+
+        transactionRepository()->create($transactionData);
 
         if ($response->successful()) {
             return $response->json();
@@ -146,11 +157,25 @@ class Client
 
         $reference = self::getCallbackMetadataByItemName($callbackMetadata, 'MpesaReceiptNumber');
 
-        Transaction::find($transaction->id)->update([
+        $transactionModel = Transaction::find($transaction->id);
+        $transactionModel->update([
             'raw_callback' => json_encode($data),
             'status' => $status,
             'provider_reference' => $reference
         ]);
+
+        // Update order status if transaction is linked to an order
+        if ($status === 'completed' && $transactionModel->order_reference && class_exists(\Lyre\Commerce\Models\Order::class)) {
+            $order = \Lyre\Commerce\Models\Order::where('reference', $transactionModel->order_reference)->first();
+            if ($order && in_array($order->status, ['invoiced', 'pending', 'confirmed'])) {
+                $order->update(['status' => 'paid']);
+
+                // Emit order paid event if exists
+                if (class_exists(\Lyre\Commerce\Events\OrderPaid::class)) {
+                    event(new \Lyre\Commerce\Events\OrderPaid($order));
+                }
+            }
+        }
 
         return __response(
             true,

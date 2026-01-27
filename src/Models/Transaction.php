@@ -24,4 +24,12 @@ class Transaction extends Model
     {
         return $this->belongsTo(PaymentMethod::class);
     }
+
+    public function order()
+    {
+        if (class_exists(\Lyre\Commerce\Models\Order::class)) {
+            return $this->belongsTo(\Lyre\Commerce\Models\Order::class, 'order_reference', 'reference');
+        }
+        return null;
+    }
 }

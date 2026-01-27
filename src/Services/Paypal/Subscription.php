@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Paypal;
+namespace Lyre\Billing\Services\Paypal;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;

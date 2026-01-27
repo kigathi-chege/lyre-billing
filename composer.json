@@ -1,7 +1,7 @@
 {
   "name": "lyre/billing",
   "description": "Simple Laravel Subscriptions",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "type": "library",
   "license": "MIT",
   "autoload": {
@@ -21,7 +21,7 @@
   "minimum-stability": "dev",
   "require": {
     "php": "^8.2",
-    "lyre/lyre": "^1.1"
+    "lyre/lyre": "^2.0"
   },
   "extra": {
     "laravel": {

@@ -31,6 +31,8 @@ class PaymentMethodSeeder extends Seeder
                 'name' => 'PayPal',
                 'is_default' => false,
                 'details' => [
+                    'PAYPAL_CLIENT_ID' => config('services.paypal.client_id'),
+                    'PAYPAL_SECRET' => config('services.paypal.secret'),
                     'PAYPAL_BASE_URI' => config('services.paypal.base_uri'),
                     'PAYPAL_OAUTH_URI' => config('services.paypal.oauth_uri'),
                     'PAYPAL_CATALOG_URI' => config('services.paypal.catalog_uri'),

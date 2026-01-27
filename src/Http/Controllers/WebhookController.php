@@ -16,6 +16,11 @@ class WebhookController extends Controller
 
         $data = $request->all();
 
+        // Handle PayPal order payment webhooks
+        if (isset($data['event_type']) && $data['event_type'] == 'PAYMENT.CAPTURE.COMPLETED') {
+            self::paymentCaptureCompleted($data);
+        }
+
         if (isset($data['event_type']) && $data['event_type'] == 'PAYMENT.SALE.COMPLETED') {
             self::paymentSaleCompleted($data);
         }
@@ -33,6 +38,24 @@ class WebhookController extends Controller
         }
 
         return true;
+    }
+
+    public static function paymentCaptureCompleted($data)
+    {
+        if (isset($data['resource']['id'])) {
+            $orderId = $data['resource']['supplementary_data']['related_ids']['order_id'] ?? null;
+            
+            if ($orderId) {
+                try {
+                    \Lyre\Billing\Services\Paypal\Payment::capture($orderId);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('PayPal Capture Webhook Error', [
+                        'error' => $e->getMessage(),
+                        'data' => $data,
+                    ]);
+                }
+            }
+        }
     }
 
     public static function paymentSaleCompleted($data)
