@@ -13,9 +13,10 @@ return new class extends Migration
     {
         $prefix = config('lyre.table_prefix');
         $tableName = $prefix . 'subscriptions';
+        $userTable = app(config('lyre.user_model'))->getTable();
 
         if (!Schema::hasTable($tableName)) {
-            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix, $userTable) {
                 basic_fields($table, $tableName);
 
                 $table->string('status')->default('pending')->comment('The status of the subscription, pending, active, paused, canceled, expired');
@@ -37,7 +38,7 @@ return new class extends Migration
                 $table->string('tax_id_type')->nullable()->comment('The tax id type of the address');
                 $table->string('tax_id_number')->nullable()->comment('The tax id number of the address');
 
-                $table->foreignId('user_id')->constrained()->nullOnDelete();
+                $table->foreignId('user_id')->constrained($userTable)->nullOnDelete();
                 $table->foreignId('subscription_plan_id')->constrained($prefix . 'subscription_plans')->nullOnDelete();
 
                 $table->index(['status']);

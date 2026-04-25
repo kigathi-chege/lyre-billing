@@ -6,7 +6,7 @@ use Lyre\Billing\Filament\Resources\BillableResource\Pages;
 use Lyre\Billing\Filament\Resources\BillableResource\RelationManagers;
 use Lyre\Billing\Models\Billable;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -19,13 +19,17 @@ class BillableResource extends Resource
 {
     protected static ?string $model = Billable::class;
 
-    protected static ?string $navigationIcon = 'gmdi-receipt-long';
+    protected static \BackedEnum|string|null $navigationIcon = 'gmdi-receipt-long';
 
-    protected static ?string $navigationGroup = 'Payments';
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Payments';
+    }
+
 
     protected static ?int $navigationSort = 18;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -90,11 +94,11 @@ class BillableResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()

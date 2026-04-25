@@ -13,9 +13,9 @@ class TestPayment
      * Create a table action for testing payments (default)
      * Use this in table actions
      */
-    public static function make(?string $name = 'test_payment'): \Filament\Tables\Actions\Action
+    public static function make(?string $name = 'test_payment'): \Filament\Actions\Action
     {
-        return \Filament\Tables\Actions\Action::make($name)
+        return \Filament\Actions\Action::make($name)
             ->label('Test Payment')
             ->icon('heroicon-o-credit-card')
             ->color('info')

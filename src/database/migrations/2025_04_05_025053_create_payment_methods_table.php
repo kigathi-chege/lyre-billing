@@ -13,9 +13,10 @@ return new class extends Migration
     {
         $prefix = config('lyre.table_prefix');
         $tableName = $prefix . 'payment_methods';
+        $userTable = app(config('lyre.user_model'))->getTable();
 
         if (!Schema::hasTable($tableName)) {
-            Schema::create($tableName, function (Blueprint $table) use ($tableName) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $userTable) {
                 $connection = Schema::getConnection();
                 $driver = $connection->getDriverName();
 
@@ -25,7 +26,7 @@ return new class extends Migration
                 $table->{$driver === 'pgsql' ? 'jsonb' : 'json'}('details')->nullable()->comment('Payment method details, e.g., secret key, public key, etc');
                 $table->boolean('is_default')->default(false)->comment('Indicates if this is the default payment method');
 
-                $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('user_id')->nullable()->constrained($userTable)->nullOnDelete();
 
                 $table->index(['name']);
                 $table->index(['is_default']);

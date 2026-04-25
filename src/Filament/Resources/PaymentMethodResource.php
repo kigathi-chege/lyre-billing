@@ -7,7 +7,7 @@ use Lyre\Billing\Filament\Resources\PaymentMethodResource\Pages;
 use Lyre\Billing\Filament\Resources\PaymentMethodResource\RelationManagers;
 use Lyre\Billing\Models\PaymentMethod;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -20,13 +20,17 @@ class PaymentMethodResource extends Resource
 {
     protected static ?string $model = PaymentMethod::class;
 
-    protected static ?string $navigationIcon = 'gmdi-payment';
+    protected static \BackedEnum|string|null $navigationIcon = 'gmdi-payment';
 
-    protected static ?string $navigationGroup = 'Payments';
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Payments';
+    }
+
 
     protected static ?int $navigationSort = 20;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -84,11 +88,11 @@ class PaymentMethodResource extends Resource
             ])
             ->actions([
                 TestPayment::make(),
-                Tables\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()

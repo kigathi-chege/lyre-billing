@@ -34,7 +34,6 @@ return new class extends Migration
 
                 $table->index(['name']);
                 $table->index(['status']);
-                $table->index(['item']);
                 $table->index(['billable_id']);
             });
         }

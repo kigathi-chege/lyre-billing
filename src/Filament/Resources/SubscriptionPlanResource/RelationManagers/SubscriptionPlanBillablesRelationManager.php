@@ -5,7 +5,7 @@ namespace Lyre\Billing\Filament\Resources\SubscriptionPlanResource\RelationManag
 use Lyre\Billing\Filament\Resources\BillableResource;
 use Lyre\Billing\Models\Billable;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -21,17 +21,17 @@ class SubscriptionPlanBillablesRelationManager extends RelationManager
     protected static ?string $recordTitleAttribute = 'billable.name';
 
     // TODO: Kigathi - June 12 2025 - Understand this function, and extract it for reusability
-    function getSchema(string $resourceClass): array
+    protected function getResourceSchemaComponents(string $resourceClass): array
     {
         $fake = new class extends \Filament\Forms\Components\Component implements \Filament\Forms\Contracts\HasForms {
             use \Filament\Forms\Concerns\InteractsWithForms;
         };
 
-        $container = \Filament\Forms\Form::make($fake);
+        $container = \Filament\Schemas\Schema::make($fake);
         return $resourceClass::form($container)->getComponents();
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -99,13 +99,13 @@ class SubscriptionPlanBillablesRelationManager extends RelationManager
                     ->preload(),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
+                \Filament\Actions\CreateAction::make()
                     ->label('Attach Billable'),
-                Tables\Actions\Action::make('createBillable')
+                \Filament\Actions\Action::make('createBillable')
                     ->label('Create Billable')
                     ->icon('gmdi-add-circle')
                     ->form(function () {
-                        $schema = $this->getSchema(BillableResource::class);
+                        $schema = $this->getResourceSchemaComponents(BillableResource::class);
                         $schema = array_filter($schema, fn($field) => $field->getName() !== 'user_id');
                         return $schema;
                     })
@@ -127,17 +127,17 @@ class SubscriptionPlanBillablesRelationManager extends RelationManager
                     ->successNotificationTitle('Billable created and attached successfully'),
             ])
             ->actions([
-                Tables\Actions\Action::make('view')
+                \Filament\Actions\Action::make('view')
                     ->label('View')
                     ->icon('gmdi-visibility')
                     ->color('info')
                     ->url(fn($record) => BillableResource::getUrl('edit', ['record' => $record->billable_id])),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ])
             ->emptyStateHeading('No billables attached')

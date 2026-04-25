@@ -13,13 +13,14 @@ return new class extends Migration
     {
         $prefix = config('lyre.table_prefix');
         $tableName = $prefix . 'billables';
+        $userTable = app(config('lyre.user_model'))->getTable();
 
         if (!Schema::hasTable($tableName)) {
-            Schema::create($tableName, function (Blueprint $table) use ($tableName) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $userTable) {
                 basic_fields($table, $tableName);
                 $table->string('name');
                 $table->string('status')->default('active');
-                $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('user_id')->nullable()->constrained($userTable)->nullOnDelete();
 
                 $table->index(['name']);
                 $table->index(['status']);

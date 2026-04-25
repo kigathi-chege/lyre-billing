@@ -3,7 +3,7 @@
 namespace Lyre\Billing\Filament\Resources\BillableItemResource\RelationManagers;
 
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -13,7 +13,7 @@ class BillableUsagesRelationManager extends RelationManager
 {
     protected static string $relationship = 'billableUsages';
 
-    public function form(Form $form): Form
+    public function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -65,15 +65,15 @@ class BillableUsagesRelationManager extends RelationManager
                     ->preload(),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                \Filament\Actions\CreateAction::make(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
     }

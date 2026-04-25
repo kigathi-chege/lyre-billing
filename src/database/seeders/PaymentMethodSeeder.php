@@ -37,9 +37,26 @@ class PaymentMethodSeeder extends Seeder
                     'PAYPAL_OAUTH_URI' => config('services.paypal.oauth_uri'),
                     'PAYPAL_CATALOG_URI' => config('services.paypal.catalog_uri'),
                     'PAYPAL_SUBSCRIPTION_URI' => config('services.paypal.subscription_uri'),
-                    'PAYPAL_RETURN_URL' => config('services.paypal.return_url'),
-                    'PAYPAL_CANCEL_URL' => config('services.paypal.cancel_url'),
+                    'PAYPAL_RETURN_URL' => config('billing.providers.paypal.return_url'),
+                    'PAYPAL_CANCEL_URL' => config('billing.providers.paypal.cancel_url'),
                 ]
+            ],
+            [
+                'name' => 'Stripe',
+                'is_default' => false,
+                'details' => [
+                    'STRIPE_KEY' => config('services.stripe.key'),
+                    'STRIPE_SECRET' => config('services.stripe.secret'),
+                    'STRIPE_WEBHOOK_SECRET' => config('services.stripe.webhook_secret'),
+                ],
+            ],
+            [
+                'name' => 'Paystack',
+                'is_default' => false,
+                'details' => [
+                    'PAYSTACK_PUBLIC_KEY' => config('services.paystack.key'),
+                    'PAYSTACK_SECRET' => config('services.paystack.secret'),
+                ],
             ],
         ];
 

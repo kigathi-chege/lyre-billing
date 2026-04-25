@@ -6,7 +6,7 @@ use Lyre\Billing\Filament\Resources\SubscriptionResource\Pages;
 use Lyre\Billing\Filament\Resources\SubscriptionResource\RelationManagers;
 use Lyre\Billing\Models\Subscription;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,13 +17,17 @@ class SubscriptionResource extends Resource
 {
     protected static ?string $model = Subscription::class;
 
-    protected static ?string $navigationIcon = 'gmdi-subscriptions';
+    protected static \BackedEnum|string|null $navigationIcon = 'gmdi-subscriptions';
 
-    protected static ?string $navigationGroup = 'Payments';
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Payments';
+    }
+
 
     protected static ?int $navigationSort = 16;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->columns(2)
@@ -102,11 +106,11 @@ class SubscriptionResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                \Filament\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()

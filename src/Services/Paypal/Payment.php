@@ -46,8 +46,8 @@ class Payment
                 'landing_page' => 'BILLING',
                 'shipping_preference' => 'NO_SHIPPING',
                 'user_action' => 'PAY_NOW',
-                'return_url' => config('services.paypal.return_url') . '?order=' . ($order->reference ?? $order->id),
-                'cancel_url' => config('services.paypal.cancel_url') . '?order=' . ($order->reference ?? $order->id),
+                'return_url' => ($payload['return_url'] ?? config('services.paypal.return_url')) . '?order_reference=' . ($order->reference ?? $order->id),
+                'cancel_url' => ($payload['cancel_url'] ?? config('services.paypal.cancel_url')) . '?order_reference=' . ($order->reference ?? $order->id),
             ],
         ];
 
@@ -182,4 +182,3 @@ class Payment
         throw new \Exception('Unable to retrieve payment details.');
     }
 }
-

@@ -90,7 +90,7 @@ class Client
             "PartyA" => $partyA ?? $phoneNumber, // The phone number sending money
             "PartyB" => $this->paymentMethod->details['MPESA_PARTY_B'] ?? $this->paymentMethod->details['MPESA_BUSINESS_SHORT_CODE'], // The organization receiving the money
             "PhoneNumber" => $phoneNumber, // The phone receiving the STK push
-            "CallBackURL" => config('lyre.billing.mpesa.webhook'),
+            "CallBackURL" => config('billing.providers.mpesa.callback_url'),
             "AccountReference" => $orderReference ?? $this->paymentMethod->details['MPESA_ACCOUNT_REFERENCE'] ?? config('app.name'), // Value displayed to customer in the STK Pin Prompt along with Business Name
             "TransactionDesc" => "Payment of X"
         ];

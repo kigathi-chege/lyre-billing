@@ -12,16 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         $prefix = config('lyre.table_prefix');
+        $userTable = app(config('lyre.user_model'))->getTable();
         $tableName = $prefix . 'billable_usages';
 
         if (!Schema::hasTable($tableName)) {
-            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix, $userTable) {
                 basic_fields($table, $tableName);
                 $table->foreignId('billable_item_id')
                     ->constrained($prefix . 'billable_items')
                     ->cascadeOnDelete();
                 $table->foreignId('user_id')
-                    ->constrained()
+                    ->constrained($userTable)
                     ->cascadeOnDelete();
                 $table->float('amount')->comment('Total amount charged for this usage')->default(0.00);
                 $table->timestamp('recorded_at');

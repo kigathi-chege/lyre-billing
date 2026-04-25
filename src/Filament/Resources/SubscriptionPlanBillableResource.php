@@ -5,7 +5,7 @@ namespace Lyre\Billing\Filament\Resources;
 use Lyre\Billing\Filament\Resources\SubscriptionPlanBillableResource\Pages;
 use Lyre\Billing\Models\SubscriptionPlanBillable;
 use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,15 +16,19 @@ class SubscriptionPlanBillableResource extends Resource
 {
     protected static ?string $model = SubscriptionPlanBillable::class;
 
-    protected static ?string $navigationIcon = 'gmdi-link';
+    protected static \BackedEnum|string|null $navigationIcon = 'gmdi-link';
 
-    protected static ?string $navigationGroup = 'Payments';
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Payments';
+    }
+
 
     protected static ?int $navigationSort = 19;
 
     protected static bool $shouldRegisterNavigation = false;
 
-    public static function form(Form $form): Form
+    public static function form(Schema $form): Schema
     {
         return $form
             ->schema([
@@ -88,12 +92,12 @@ class SubscriptionPlanBillableResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                \Filament\Actions\EditAction::make(),
+                \Filament\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                \Filament\Actions\BulkActionGroup::make([
+                    \Filament\Actions\DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()

@@ -8,7 +8,10 @@ class LyreBillingServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__ . '/../config/billing.php', 'billing');
+
         register_repositories($this->app, 'Lyre\\Billing\\Repositories', 'Lyre\\Billing\\Contracts');
+        $this->app->singleton(\Lyre\Billing\Services\PaymentManager::class);
 
         // Register billable classes early in register() phase
         // This ensures they're available before boot()
@@ -19,9 +22,14 @@ class LyreBillingServiceProvider extends ServiceProvider
     {
         register_global_observers("Lyre\\Billing\\Models");
 
+        $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+
         $this->publishesMigrations([
             __DIR__ . '/../database/migrations' => database_path('migrations'),
         ]);
+        $this->publishes([
+            __DIR__ . '/../config/billing.php' => config_path('billing.php'),
+        ], 'lyre-billing-config');
 
         $this->loadRoutesFrom(__DIR__ . '/../routes/api.php');
     }

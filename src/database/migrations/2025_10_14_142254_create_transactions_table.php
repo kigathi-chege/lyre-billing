@@ -13,9 +13,10 @@ return new class extends Migration
     {
         $prefix = config('lyre.table_prefix');
         $tableName = $prefix . 'transactions';
+        $userTable = app(config('lyre.user_model'))->getTable();
 
         if (!Schema::hasTable($tableName)) {
-            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix) {
+            Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix, $userTable) {
                 basic_fields($table, $tableName);
                 $table->uuid('uuid')->unique();
                 $table->string('status')->default('pending')->comment('The status of the transaction, pending, completed, failed, cancelled, refunded, etc');
@@ -27,7 +28,7 @@ return new class extends Migration
                 $table->text('raw_request')->nullable()->comment('The raw request to the payment provider');
 
                 $table->foreignId('invoice_id')->nullable()->constrained($prefix . 'invoices')->nullOnDelete();
-                $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+                $table->foreignId('user_id')->nullable()->constrained($userTable)->nullOnDelete();
                 $table->foreignId('payment_method_id')->constrained($prefix . 'payment_methods')->nullOnDelete();
                 $table->string('order_reference')->nullable()->comment('Reference to Commerce Order for order payments');
 
