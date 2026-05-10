@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use ValentinMorice\FilamentJsonColumn\JsonColumn;
+use UnitEnum;
 
 class TransactionResource extends Resource
 {
@@ -21,11 +22,10 @@ class TransactionResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-currency-exchange';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }
-
 
     protected static ?int $navigationSort = 21;
 

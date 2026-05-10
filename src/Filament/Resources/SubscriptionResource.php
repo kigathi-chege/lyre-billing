@@ -12,6 +12,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Auth;
+use UnitEnum;
 
 class SubscriptionResource extends Resource
 {
@@ -19,11 +21,10 @@ class SubscriptionResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-subscriptions';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }
-
 
     protected static ?int $navigationSort = 16;
 

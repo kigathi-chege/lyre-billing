@@ -11,6 +11,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use UnitEnum;
 
 class BillableUsageResource extends Resource
 {
@@ -18,11 +19,10 @@ class BillableUsageResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-data-usage';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }
-
 
     protected static ?int $navigationSort = 20;
 

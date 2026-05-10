@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use FilamentTiptapEditor\TiptapEditor;
 use Illuminate\Support\Facades\Auth;
+use UnitEnum;
 
 class BillableResource extends Resource
 {
@@ -21,7 +22,7 @@ class BillableResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-receipt-long';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }

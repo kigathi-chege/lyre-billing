@@ -11,6 +11,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use UnitEnum;
 
 class SubscriptionPlanBillableResource extends Resource
 {
@@ -18,11 +19,10 @@ class SubscriptionPlanBillableResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-link';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }
-
 
     protected static ?int $navigationSort = 19;
 
@@ -114,4 +114,3 @@ class SubscriptionPlanBillableResource extends Resource
         ];
     }
 }
-

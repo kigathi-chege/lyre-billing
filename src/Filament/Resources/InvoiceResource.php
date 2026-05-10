@@ -13,6 +13,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
+use UnitEnum;
 
 class InvoiceResource extends Resource
 {
@@ -20,11 +21,10 @@ class InvoiceResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-receipt';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }
-
 
     protected static ?int $navigationSort = 19;
 

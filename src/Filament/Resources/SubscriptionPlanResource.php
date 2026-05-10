@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
 use ValentinMorice\FilamentJsonColumn\JsonColumn;
+use UnitEnum;
 
 class SubscriptionPlanResource extends Resource
 {
@@ -23,11 +24,10 @@ class SubscriptionPlanResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-workspace-premium';
 
-    public static function getNavigationGroup(): ?string
+    public static function getNavigationGroup(): string | UnitEnum | null
     {
         return 'Payments';
     }
-
 
     protected static ?int $navigationSort = 17;
 
