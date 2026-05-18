@@ -104,7 +104,7 @@ class SubscriptionPlanBillablesRelationManager extends RelationManager
                 \Filament\Actions\Action::make('createBillable')
                     ->label('Create Billable')
                     ->icon('gmdi-add-circle')
-                    ->form(function () {
+                    ->schema(function () {
                         $schema = $this->getResourceSchemaComponents(BillableResource::class);
                         $schema = array_filter($schema, fn($field) => $field->getName() !== 'user_id');
                         return $schema;
@@ -126,7 +126,7 @@ class SubscriptionPlanBillablesRelationManager extends RelationManager
                     })
                     ->successNotificationTitle('Billable created and attached successfully'),
             ])
-            ->actions([
+            ->recordActions([
                 \Filament\Actions\Action::make('view')
                     ->label('View')
                     ->icon('gmdi-visibility')
@@ -135,7 +135,7 @@ class SubscriptionPlanBillablesRelationManager extends RelationManager
                 \Filament\Actions\EditAction::make(),
                 \Filament\Actions\DeleteAction::make(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 \Filament\Actions\BulkActionGroup::make([
                     \Filament\Actions\DeleteBulkAction::make(),
                 ]),
