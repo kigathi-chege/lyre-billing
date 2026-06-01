@@ -2,19 +2,22 @@
 
 namespace Lyre\Billing\Services\Paypal;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Lyre\Billing\Models\SubscriptionPlan as ModelsSubscriptionPlan;
+use Lyre\Billing\Support\BillingSupport;
 
 class SubscriptionPlan
 {
-    public static function fromSubscriptionPlan(ModelsSubscriptionPlan $modelSubscription)
+    public static function fromSubscriptionPlan(Model $modelSubscription)
     {
-        if (!$modelSubscription->metadata['paypal_product_id']) {
+        if (!PaypalModelBridge::getPlanProductId($modelSubscription)) {
             $product = Catalog::createProduct(
-                $modelSubscription->billable->name,
-                $modelSubscription->billable->description ? strip_tags($modelSubscription->billable->description) : $modelSubscription->billable->name,
+                BillingSupport::planDisplayName($modelSubscription),
+                BillingSupport::planDisplayDescription($modelSubscription)
+                    ? strip_tags(BillingSupport::planDisplayDescription($modelSubscription))
+                    : BillingSupport::planDisplayName($modelSubscription),
                 "SERVICE",
                 'EDUCATIONAL_AND_TEXTBOOKS',
                 // asset('pop-logo.svg'),
@@ -23,7 +26,7 @@ class SubscriptionPlan
                 "https://aspirecareerconsultants.com"
             );
 
-            $modelSubscription->metadata['paypal_product_id'] = $product['id'];
+            PaypalModelBridge::setPlanProductId($modelSubscription, $product['id']);
             $modelSubscription->save();
         }
 
@@ -71,7 +74,7 @@ class SubscriptionPlan
         }
 
         $payload = [
-            "product_id" => $modelSubscription->metadata['paypal_product_id'],
+            "product_id" => PaypalModelBridge::getPlanProductId($modelSubscription),
             "name" => $modelSubscription->name,
             "description" => $modelSubscription->description ? Str::limit(strip_tags($modelSubscription->description), 120) : $modelSubscription->name,
             // "status" => $aspireSubscription->status == 'active' ? 'ACTIVE' : "INACTIVE",
@@ -95,7 +98,7 @@ class SubscriptionPlan
         try {
             $plan = self::createPaypalPlan($payload);
             Log::info("PAYPAL SUBSCRIPTION PLAN", [$plan]);
-            $modelSubscription->metadata['paypal_plan_id'] = $plan['id'];
+            PaypalModelBridge::setPlanId($modelSubscription, $plan['id']);
             $modelSubscription->save();
         } catch (\Exception $e) {
             report($e);

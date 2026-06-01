@@ -26,4 +26,10 @@ class SubscriptionPlan extends Model
     {
         return $this->hasMany(SubscriptionPlanBillable::class)->orderBy('order');
     }
+
+    public function entitlements(): array
+    {
+        $entitlements = data_get($this->metadata, 'entitlements', []);
+        return is_array($entitlements) ? $entitlements : [];
+    }
 }

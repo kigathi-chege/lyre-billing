@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Requests;
+namespace Lyre\Billing\Http\Requests;
 
 use Lyre\Request;
 

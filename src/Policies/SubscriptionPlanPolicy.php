@@ -3,9 +3,9 @@
 namespace Lyre\Billing\Policies;
 
 use Lyre\Billing\Models\SubscriptionPlan;
-use App\Models\User;
 use Lyre\Policy;
 use Illuminate\Auth\Access\Response;
+use Illuminate\Contracts\Auth\Authenticatable;
 
 class SubscriptionPlanPolicy extends Policy
 {
@@ -14,12 +14,12 @@ class SubscriptionPlanPolicy extends Policy
         parent::__construct($model);
     }
 
-    public function viewAny(?User $user): Response
+    public function viewAny(?Authenticatable $user): Response
     {
         return Response::allow();
     }
 
-    public function view(?User $user, $model): Response
+    public function view(?Authenticatable $user, $model): Response
     {
         return Response::allow();
     }

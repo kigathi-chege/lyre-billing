@@ -2,43 +2,38 @@
 
 namespace Lyre\Billing\Services\Paypal;
 
-use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Lyre\Billing\Models\Subscription as ModelsSubscription;
+use Lyre\Billing\Support\BillingSupport;
 
 class Subscription
 {
-    public static function fromSubscription(ModelsSubscription $subscription, $invoiceNumber = null)
+    public static function fromSubscription(Model $subscription, $invoiceNumber = null)
     {
-        if ($subscription->metadata['paypal_subscription_id']) {
-            return self::getSubscriptionDetails($subscription->metadata['paypal_subscription_id']);
+        $paypalSubscriptionId = PaypalModelBridge::getSubscriptionId($subscription);
+        if ($paypalSubscriptionId) {
+            return self::getSubscriptionDetails($paypalSubscriptionId);
         }
 
         $time = now()->addMinutes(5);
-        $subscription->update(['start_time' => $time]);
+        PaypalModelBridge::setStartTime($subscription, $time->setTimezone('UTC')->format('Y-m-d\TH:i:s\Z'));
+        $subscription->save();
 
         $payload = [
-            'plan_id' => $subscription->subscriptionPlan->metadata['paypal_plan_id'],
+            'plan_id' => PaypalModelBridge::getPlanId($subscription->subscriptionPlan),
             'start_time' => $time->setTimezone(config('app.timezone'))->format('Y-m-d\TH:i:s\Z'),
             'custom_id' => $invoiceNumber,
             'quantity' => '1',
             'subscriber' => [
                 'name' => [
-                    'given_name' => explode(" ", $subscription->name)[0],
-                    'surname' => explode(" ", $subscription->name)[1] ?? explode(" ", $subscription->name)[0],
+                    'given_name' => explode(' ', BillingSupport::subscriptionName($subscription))[0],
+                    'surname' => explode(' ', BillingSupport::subscriptionName($subscription))[1] ?? explode(' ', BillingSupport::subscriptionName($subscription))[0],
                 ],
-                'email_address' => $subscription->email,
+                'email_address' => BillingSupport::subscriptionEmail($subscription),
                 'shipping_address' => [
-                    'name' => ['full_name' => $subscription->name],
-                    'address' => [
-                        'address_line_1' => $subscription->address_line_1 ?? '1234 Elm Street',
-                        'address_line_2' => $subscription->address_line_2 ?? 'Suite 100',
-                        'admin_area_2' => $subscription->admin_area_2 ?? 'San Jose',
-                        'admin_area_1' => $subscription->admin_area_1 ?? 'CA',
-                        'postal_code' => $subscription->postal_code ?? '95131',
-                        'country_code' => $subscription->country_code ?? 'US',
-                    ],
+                    'name' => ['full_name' => BillingSupport::subscriptionName($subscription)],
+                    'address' => BillingSupport::subscriptionAddress($subscription),
                 ],
             ],
             'application_context' => [
@@ -60,11 +55,12 @@ class Subscription
         try {
             $paypalSubscription = self::createPaypalSubscription($payload);
             Log::info("PAYPAL SUBSCRIPTION", [$paypalSubscription]);
-            $subscription->metadata['paypal_subscription_id'] = $paypalSubscription['id'];
+            PaypalModelBridge::setSubscriptionId($subscription, $paypalSubscription['id']);
             $subscription->save();
 
             $approvalLink = collect($paypalSubscription['links'])->where('rel', 'approve')->first();
-            $subscription->update(['link' => $approvalLink['href']]);
+            PaypalModelBridge::setApprovalLink($subscription, $approvalLink['href'] ?? null);
+            $subscription->save();
 
             return $paypalSubscription['links'];
         } catch (\Exception $e) {

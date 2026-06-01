@@ -2,13 +2,17 @@
 
 namespace Lyre\Billing\Models;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Lyre\Model;
+use Lyre\Billing\Support\BillingSupport;
 
 class Transaction extends Model
 {
     use HasFactory;
+
+    protected $casts = [
+        'metadata' => 'array',
+    ];
 
     public function invoice()
     {
@@ -17,7 +21,7 @@ class Transaction extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(BillingSupport::userModel());
     }
 
     public function paymentMethod()

@@ -13,6 +13,7 @@ class Invoice extends Model
         'amount' => 'decimal:2',
         'amount_paid' => 'decimal:6',
         'due_date' => 'datetime',
+        'metadata' => 'array',
     ];
 
     public function subscription()

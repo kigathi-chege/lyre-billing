@@ -7,5 +7,5 @@ use Lyre\Interface\RepositoryInterface;
 
 interface SubscriptionPlanRepositoryInterface extends RepositoryInterface
 {
-    public function subscribe(SubscriptionPlan $plan);
+    public function subscribe(SubscriptionPlan $plan, ?string $provider = null);
 }

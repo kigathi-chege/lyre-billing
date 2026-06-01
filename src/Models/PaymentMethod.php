@@ -12,6 +12,7 @@ class PaymentMethod extends Model
     protected $casts = [
         'details' => 'array',
         'is_default' => 'boolean',
+        'metadata' => 'array',
     ];
 
     public static function get($name)

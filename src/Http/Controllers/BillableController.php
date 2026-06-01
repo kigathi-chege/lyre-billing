@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace Lyre\Billing\Http\Controllers;
 
-use App\Models\Billable;
-use App\Repositories\Interface\BillableRepositoryInterface;
+use Lyre\Billing\Contracts\BillableRepositoryInterface;
+use Lyre\Billing\Models\Billable;
 use Lyre\Controller;
 
 class BillableController extends Controller

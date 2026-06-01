@@ -2,12 +2,12 @@
 
 namespace Lyre\Billing\Models;
 
-use App\Models\User;
-
 use Lyre\Billing\Scopes\OwnsScope;
 // use App\Services\Paypal\Subscription as PaypalSubscription;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Lyre\Model;
+use Lyre\Billing\Support\BillingSupport;
 
 class Subscription extends Model
 {
@@ -15,14 +15,23 @@ class Subscription extends Model
 
     protected $with = ['subscriptionPlan'];
 
-    public function user()
+    protected $casts = [
+        'metadata' => 'array',
+    ];
+
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(BillingSupport::userModel());
     }
 
-    public function subscriptionPlan()
+    public function subscriptionPlan(): BelongsTo
     {
         return $this->belongsTo(SubscriptionPlan::class, 'subscription_plan_id');
+    }
+
+    public function subscriptionEntitlements()
+    {
+        return $this->hasMany(SubscriptionEntitlement::class);
     }
 
     // public function paypalSubscription()

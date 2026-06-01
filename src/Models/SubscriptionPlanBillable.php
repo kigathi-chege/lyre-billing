@@ -2,7 +2,6 @@
 
 namespace Lyre\Billing\Models;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Lyre\Model;
 
@@ -44,4 +43,3 @@ class SubscriptionPlanBillable extends Model
         return $this->belongsTo(Billable::class);
     }
 }
-

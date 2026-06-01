@@ -2,10 +2,9 @@
 
 namespace Lyre\Billing\Console\Commands;
 
-use Lyre\Billing\Jobs\SendEmails;
 use Lyre\Billing\Models\Subscription;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Mail;
+use Lyre\Billing\Services\SubscriptionLifecycleService;
 
 class CheckSubscriptionExpiry extends Command
 {
@@ -28,37 +27,18 @@ class CheckSubscriptionExpiry extends Command
      */
     public function handle()
     {
+        $lifecycleService = app(SubscriptionLifecycleService::class);
+
         $toMarkExpired = Subscription::with(['subscriptionReminders'])->where('end_date', '<', now())->where('status', 'active')->get();
 
         foreach ($toMarkExpired as $subscription) {
-            $subscription->status = 'expired';
-            $subscription->save();
-
-            SendEmails::dispatch(
-                email: $subscription->user->email,
-                subject: 'Subscription Expiry',
-                view: 'email.subscriptions.expired',
-                data: [
-                    'name' => $subscription->user->name,
-                    'buttonText' => 'Renew Now',
-                    'buttonLink' => config('services.paypal.base_uri') . "/billing/subscriptions/{$subscription->paypal_id}/capture"
-                ]
-            );
+            $lifecycleService->expire($subscription);
         }
 
         $toNotifyBeforeExpiry = Subscription::where('end_date', '<', now()->addDays(2))->where('status', 'active')->get();
 
         foreach ($toNotifyBeforeExpiry as $subscription) {
-            SendEmails::dispatch(
-                email: $subscription->user->email,
-                subject: 'Subscription Expiry',
-                view: 'email.subscriptions.expiring',
-                data: [
-                    'name' => $subscription->user->name,
-                    'buttonText' => 'Renew Now',
-                    'buttonLink' => config('services.paypal.base_uri') . "/billing/subscriptions/{$subscription->paypal_id}/capture"
-                ]
-            );
+            $lifecycleService->markRenewalDue($subscription);
         }
     }
 }

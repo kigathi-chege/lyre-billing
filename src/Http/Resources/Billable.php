@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Http\Resources;
+namespace Lyre\Billing\Http\Resources;
 
-use App\Models\Billable as BillableModel;
+use Lyre\Billing\Models\Billable as BillableModel;
 use Lyre\Resource;
 
 class Billable extends Resource
