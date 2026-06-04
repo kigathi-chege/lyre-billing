@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         $prefix = config('lyre.table_prefix');
-        $userTable = app(config('lyre.user_model'))->getTable();
+        $userModel = config('lyre.user_model', \App\Models\User::class);
+        $userTable = class_exists($userModel) ? (new $userModel())->getTable() : 'users';
         $tableName = $prefix . 'billable_usages';
 
         if (!Schema::hasTable($tableName)) {

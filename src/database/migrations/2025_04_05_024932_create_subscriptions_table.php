@@ -13,7 +13,8 @@ return new class extends Migration
     {
         $prefix = config('lyre.table_prefix');
         $tableName = $prefix . 'subscriptions';
-        $userTable = app(config('lyre.user_model'))->getTable();
+        $userModel = config('lyre.user_model', \App\Models\User::class);
+        $userTable = class_exists($userModel) ? (new $userModel())->getTable() : 'users';
 
         if (!Schema::hasTable($tableName)) {
             Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix, $userTable) {
