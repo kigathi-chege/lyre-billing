@@ -15,5 +15,5 @@ Route::prefix('api')
         Route::get('/subscriptionplans/{plan}/subscribe/', [Controllers\SubscriptionPlanController::class, 'subscribe']);
         Route::get('/subscriptions/{subscription}/approved/', [Controllers\SubscriptionController::class, 'approved']);
 
-        Route::post('billing/webhook', Controllers\WebhookController::class)->name('webhook');
+        Route::post('billing/webhook', Controllers\WebhookController::class)->name('billing.webhook');
     });
