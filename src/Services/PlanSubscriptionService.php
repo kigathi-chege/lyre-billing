@@ -5,6 +5,7 @@ namespace Lyre\Billing\Services;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use Lyre\Billing\Events\SubscriptionProcessStarted;
 use Lyre\Billing\Models\Invoice;
 use Lyre\Billing\Models\SubscriptionEntitlement;
 use Lyre\Billing\Support\BillingSupport;
@@ -109,6 +110,12 @@ class PlanSubscriptionService
             'approval_href' => collect($links)->firstWhere('rel', 'approve')['href'] ?? null,
             'links_count' => count($links),
         ]);
+        event(new SubscriptionProcessStarted(
+            $subscription->fresh(),
+            $plan,
+            $invoice->fresh(),
+            $provider
+        ));
         $this->syncCompatibilityEntitlements($plan, $subscription);
         Log::info('billing.plan_subscription.entitlements_synced', [
             'subscription_id' => $subscription->getKey(),
