@@ -48,6 +48,11 @@ class PaymentMethodSeeder extends Seeder
                     'STRIPE_KEY' => config('services.stripe.key'),
                     'STRIPE_SECRET' => config('services.stripe.secret'),
                     'STRIPE_WEBHOOK_SECRET' => config('services.stripe.webhook_secret'),
+                    'STRIPE_WEBHOOK_SECRETS' => config('billing.providers.stripe.webhook_secrets'),
+                    'STRIPE_SNAPSHOT_WEBHOOK_SECRET' => config('billing.providers.stripe.snapshot_webhook_secret'),
+                    'STRIPE_THIN_WEBHOOK_SECRET' => config('billing.providers.stripe.thin_webhook_secret'),
+                    'STRIPE_API_VERSION' => config('billing.providers.stripe.api_version'),
+                    'STRIPE_THIN_WEBHOOK_API_VERSION' => config('billing.providers.stripe.thin_webhook_api_version'),
                 ],
             ],
             [

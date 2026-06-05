@@ -6,16 +6,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Lyre\Billing\Models\Invoice;
 use Lyre\Billing\Services\SubscriptionLifecycleService;
+use Stripe\Exception\ApiErrorException;
+use Stripe\Exception\SignatureVerificationException;
 
 class WebhookEventHandler
 {
     public function handle(Request $request): void
     {
-        $secret = Client::webhookSecret();
         $payload = $request->getContent();
         $signature = (string) $request->header('Stripe-Signature', '');
+        $secrets = Client::webhookSecrets();
 
-        if (! $secret) {
+        if ($signature === '') {
+            throw new \RuntimeException('Stripe webhook signature header is missing.');
+        }
+
+        if ($secrets === []) {
             throw new \RuntimeException('Stripe webhook secret is not configured.');
         }
 
@@ -23,9 +29,17 @@ class WebhookEventHandler
             throw new \RuntimeException('stripe/stripe-php is required. Install it in lyre/billing.');
         }
 
-        $event = \Stripe\Webhook::constructEvent($payload, $signature, $secret);
-        $eventType = (string) data_get($event, 'type', '');
-        $object = data_get($event, 'data.object');
+        $resolvedEvent = $this->resolveEvent($payload, $signature, $secrets);
+        $eventType = $resolvedEvent['event_type'];
+        $object = $resolvedEvent['object'];
+
+        Log::info('billing.stripe_webhook.received', [
+            'delivery_mode' => $resolvedEvent['delivery_mode'],
+            'event_id' => $resolvedEvent['event_id'],
+            'event_type' => $eventType,
+            'raw_event_type' => $resolvedEvent['raw_event_type'],
+            'object_type' => is_object($object) ? data_get($object, 'object') : gettype($object),
+        ]);
 
         match ($eventType) {
             'checkout.session.completed' => $this->checkoutSessionCompleted($object),
@@ -37,6 +51,130 @@ class WebhookEventHandler
             'invoice.paid' => $this->invoicePaid($object),
             default => null,
         };
+    }
+
+    protected function resolveEvent(string $payload, string $signature, array $secrets): array
+    {
+        $snapshotEvent = $this->parseSnapshotEvent($payload, $signature, $secrets);
+        if ($snapshotEvent) {
+            return $snapshotEvent;
+        }
+
+        $thinEvent = $this->parseThinEvent($payload, $signature, $secrets);
+        if ($thinEvent) {
+            return $thinEvent;
+        }
+
+        throw new \RuntimeException('Stripe webhook signature could not be verified for either snapshot or thin payloads.');
+    }
+
+    protected function parseSnapshotEvent(string $payload, string $signature, array $secrets): ?array
+    {
+        foreach ($secrets as $secret) {
+            try {
+                $event = \Stripe\Webhook::constructEvent($payload, $signature, $secret);
+
+                return [
+                    'delivery_mode' => 'snapshot',
+                    'event_id' => (string) data_get($event, 'id', ''),
+                    'raw_event_type' => (string) data_get($event, 'type', ''),
+                    'event_type' => (string) data_get($event, 'type', ''),
+                    'object' => data_get($event, 'data.object'),
+                ];
+            } catch (SignatureVerificationException) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    protected function parseThinEvent(string $payload, string $signature, array $secrets): ?array
+    {
+        $client = Client::make(Client::thinWebhookApiVersion());
+
+        foreach ($secrets as $secret) {
+            try {
+                $event = $client->parseThinEvent($payload, $signature, $secret);
+                $rawEventType = (string) data_get($event, 'type', '');
+
+                return [
+                    'delivery_mode' => 'thin',
+                    'event_id' => (string) data_get($event, 'id', ''),
+                    'raw_event_type' => $rawEventType,
+                    'event_type' => $this->normalizeThinEventType($rawEventType),
+                    'object' => $this->resolveThinEventObject($event, $client),
+                ];
+            } catch (SignatureVerificationException) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    protected function normalizeThinEventType(string $eventType): string
+    {
+        if (str_starts_with($eventType, 'v1.')) {
+            return substr($eventType, 3);
+        }
+
+        return $eventType;
+    }
+
+    protected function resolveThinEventObject(\Stripe\ThinEvent $event, \Stripe\StripeClient $client): mixed
+    {
+        $opts = [];
+        $context = (string) data_get($event, 'context', '');
+        if ($context !== '') {
+            $opts['stripe_context'] = $context;
+        }
+
+        try {
+            $fullEvent = $client->v2->core->events->retrieve((string) $event->id, [], $opts);
+            $object = data_get($fullEvent, 'data.object');
+            if ($object) {
+                return $object;
+            }
+
+            $relatedUrl = (string) data_get($fullEvent, 'related_object.url', '');
+            if ($relatedUrl !== '') {
+                return $this->fetchStripeObjectByUrl($client, $relatedUrl, $opts);
+            }
+        } catch (ApiErrorException $exception) {
+            Log::warning('billing.stripe_webhook.thin_event_retrieve_failed', [
+                'event_id' => (string) data_get($event, 'id', ''),
+                'event_type' => (string) data_get($event, 'type', ''),
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        $relatedUrl = (string) data_get($event, 'related_object.url', '');
+        if ($relatedUrl !== '') {
+            return $this->fetchStripeObjectByUrl($client, $relatedUrl, $opts);
+        }
+
+        return null;
+    }
+
+    protected function fetchStripeObjectByUrl(\Stripe\StripeClient $client, string $url, array $opts): mixed
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
+
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        try {
+            return $client->request('get', $path, [], $opts);
+        } catch (ApiErrorException $exception) {
+            Log::warning('billing.stripe_webhook.related_object_fetch_failed', [
+                'path' => $path,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     protected function checkoutSessionCompleted($session): void
