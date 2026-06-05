@@ -19,7 +19,13 @@ class SubscriptionPlanController extends Controller
 
     public function subscribe(Request $request, string $plan)
     {
-        $plan = SubscriptionPlan::where('id', $plan)->orWhere('slug', $plan)->firstOrFail();
+        $plan = SubscriptionPlan::query()
+            ->where('slug', $plan)
+            ->when(ctype_digit($plan), function ($query) use ($plan) {
+                $query->orWhere('id', (int) $plan);
+            })
+            ->firstOrFail();
+
         return $this->modelRepository->subscribe($plan, $request->query('provider'));
     }
 }

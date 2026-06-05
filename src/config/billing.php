@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'client_url' => env('BILLING_CLIENT_URL', env('CLIENT_URL', env('APP_CLIENT_URL', 'https://aspirecareerconsultants.com'))),
+
     'models' => [
         'subscription' => \Lyre\Billing\Models\Subscription::class,
         'subscription_plan' => \Lyre\Billing\Models\SubscriptionPlan::class,
@@ -16,8 +18,8 @@ return [
         'paypal' => [
             'enabled' => env('BILLING_PAYPAL_ENABLED', true),
             'callback_url' => env('BILLING_PAYPAL_CALLBACK_URL', env('APP_URL') . '/payments/paypal/callback'),
-            'return_url' => env('BILLING_PAYPAL_RETURN_URL', env('APP_URL') . '/payments/paypal/return'),
-            'cancel_url' => env('BILLING_PAYPAL_CANCEL_URL', env('APP_URL') . '/payments/paypal/cancel'),
+            'return_url' => env('BILLING_PAYPAL_RETURN_URL', env('APP_URL') . '/api/billing/subscriptions/provider-return-redirect?provider=paypal'),
+            'cancel_url' => env('BILLING_PAYPAL_CANCEL_URL', env('APP_URL') . '/api/billing/subscriptions/provider-cancel-redirect?provider=paypal'),
             'plan_subscription_service' => \Lyre\Billing\Services\Paypal\PlanSubscriptionService::class,
             'subscription_lifecycle_service' => \Lyre\Billing\Services\Paypal\SubscriptionLifecycleService::class,
             'webhook_handler' => \Lyre\Billing\Services\Paypal\WebhookEventHandler::class,
@@ -25,8 +27,8 @@ return [
         'stripe' => [
             'enabled' => env('BILLING_STRIPE_ENABLED', true),
             'callback_url' => env('BILLING_STRIPE_CALLBACK_URL', env('APP_URL') . '/payments/stripe/callback'),
-            'return_url' => env('BILLING_STRIPE_RETURN_URL', env('APP_URL') . '/payments/stripe/return'),
-            'cancel_url' => env('BILLING_STRIPE_CANCEL_URL', env('APP_URL') . '/payments/stripe/cancel'),
+            'return_url' => env('BILLING_STRIPE_RETURN_URL', env('APP_URL') . '/api/billing/subscriptions/provider-return-redirect?provider=stripe'),
+            'cancel_url' => env('BILLING_STRIPE_CANCEL_URL', env('APP_URL') . '/api/billing/subscriptions/provider-cancel-redirect?provider=stripe'),
             'plan_subscription_service' => \Lyre\Billing\Services\Stripe\PlanSubscriptionService::class,
             'subscription_lifecycle_service' => \Lyre\Billing\Services\Stripe\SubscriptionLifecycleService::class,
             'webhook_handler' => \Lyre\Billing\Services\Stripe\WebhookEventHandler::class,

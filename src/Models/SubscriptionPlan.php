@@ -11,10 +11,11 @@ class SubscriptionPlan extends Model
 {
     use HasFactory, HasFacet;
 
-    protected $with = ['subscriptionPlanBillables'];
+    protected $with = ['subscriptionPlanBillables', 'product'];
 
     protected $casts = [
-        'metadata' => 'array'
+        'features' => 'array',
+        'metadata' => 'array',
     ];
 
     public function subscriptions()
@@ -25,6 +26,11 @@ class SubscriptionPlan extends Model
     public function subscriptionPlanBillables()
     {
         return $this->hasMany(SubscriptionPlanBillable::class)->orderBy('order');
+    }
+
+    public function product(): MorphTo
+    {
+        return $this->morphTo();
     }
 
     public function entitlements(): array

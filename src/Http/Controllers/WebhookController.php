@@ -3,9 +3,9 @@
 namespace Lyre\Billing\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Lyre\Controller;
+use Illuminate\Routing\Controller as BaseController;
 
-class WebhookController extends Controller
+class WebhookController extends BaseController
 {
     public function __invoke(Request $request)
     {

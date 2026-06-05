@@ -13,7 +13,11 @@ Route::prefix('api')
         ]);
 
         Route::get('/subscriptionplans/{plan}/subscribe/', [Controllers\SubscriptionPlanController::class, 'subscribe']);
-        Route::get('/subscriptions/{subscription}/approved/', [Controllers\SubscriptionController::class, 'approved']);
+        Route::prefix('billing/subscriptions')->group(function () {
+            Route::get('/provider-return', [Controllers\SubscriptionController::class, 'providerReturned']);
+            Route::get('/provider-return-redirect', [Controllers\SubscriptionController::class, 'providerReturnRedirect']);
+            Route::get('/provider-cancel-redirect', [Controllers\SubscriptionController::class, 'providerCancelRedirect']);
+        });
 
         Route::post('billing/webhook', Controllers\WebhookController::class)->name('billing.webhook');
     });

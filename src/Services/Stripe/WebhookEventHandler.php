@@ -3,6 +3,7 @@
 namespace Lyre\Billing\Services\Stripe;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Lyre\Billing\Models\Invoice;
 use Lyre\Billing\Services\SubscriptionLifecycleService;
 
@@ -50,10 +51,30 @@ class WebhookEventHandler
 
         $subscription = StripeModelBridge::findByCheckoutSessionId((string) $checkoutSessionId);
         if (! $subscription) {
+            Log::warning('billing.stripe_webhook.checkout_session_missing_local_subscription', [
+                'checkout_session_id' => $checkoutSessionId,
+                'provider_subscription_id' => $subscriptionId,
+                'invoice_number' => $invoiceNumber,
+            ]);
             return;
         }
 
+        Log::info('billing.stripe_webhook.checkout_session_resolved', [
+            'checkout_session_id' => $checkoutSessionId,
+            'local_subscription_id' => $subscription->getKey(),
+            'provider_subscription_id' => $subscriptionId,
+            'invoice_number' => $invoiceNumber,
+        ]);
+
+        StripeModelBridge::setCustomerId($subscription, (string) data_get($session, 'customer'));
         StripeModelBridge::setSubscriptionId($subscription, (string) $subscriptionId);
+        $subscription->save();
+
+        Log::info('billing.stripe_webhook.checkout_session_saved', [
+            'checkout_session_id' => $checkoutSessionId,
+            'local_subscription_id' => $subscription->getKey(),
+            'provider_subscription_id' => $subscriptionId,
+        ]);
 
         $invoice = $invoiceNumber ? Invoice::where('invoice_number', $invoiceNumber)->first() : null;
         app(SubscriptionLifecycleService::class)->approveByProviderId((string) $subscriptionId, $invoice, 'stripe');

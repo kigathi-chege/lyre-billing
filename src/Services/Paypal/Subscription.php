@@ -45,8 +45,8 @@ class Subscription
                     'payer_selected' => 'PAYPAL',
                     'payee_preferred' => 'IMMEDIATE_PAYMENT_REQUIRED',
                 ],
-                'return_url' => config('services.paypal.return_url'),
-                'cancel_url' => config('services.paypal.cancel_url'),
+                'return_url' => config('billing.providers.paypal.return_url'),
+                'cancel_url' => config('billing.providers.paypal.cancel_url'),
             ],
         ];
 
