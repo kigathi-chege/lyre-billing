@@ -60,10 +60,6 @@ class BillingSupport
             return $value;
         }
 
-        if ($legacyColumn) {
-            return $model->getAttribute($legacyColumn);
-        }
-
         return null;
     }
 
@@ -79,10 +75,6 @@ class BillingSupport
         $providerValues = is_array($providerValues) ? $providerValues : [];
         data_set($providerValues, "{$provider}.{$key}", $value);
         self::setMetadata($model, 'providers', $providerValues);
-
-        if ($legacyColumn && self::hasColumn($model, $legacyColumn)) {
-            $model->setAttribute($legacyColumn, $value);
-        }
     }
 
     public static function planDisplayName(Model $plan): string

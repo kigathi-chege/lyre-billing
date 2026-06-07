@@ -24,7 +24,7 @@ class BillableResource extends Resource
 
     public static function getNavigationGroup(): string | UnitEnum | null
     {
-        return 'Payments';
+        return 'Subscriptions';
     }
 
 

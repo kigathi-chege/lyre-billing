@@ -223,8 +223,7 @@ class SubscriptionProviderReturnService
 
         return $query
             ->where(function (Builder $builder) use ($providerSubscriptionId) {
-                $builder->where('paypal_id', $providerSubscriptionId)
-                    ->orWhere('metadata->providers->paypal->subscription_id', $providerSubscriptionId)
+                $builder->where('metadata->providers->paypal->subscription_id', $providerSubscriptionId)
                     ->orWhere('metadata->paypal_subscription_id', $providerSubscriptionId);
             })
             ->firstOrFail();

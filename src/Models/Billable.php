@@ -10,6 +10,10 @@ class Billable extends Model
 {
     use HasFactory;
 
+    protected $casts = [
+        'metadata' => 'array',
+    ];
+
     public function billableItems()
     {
         return $this->hasMany(BillableItem::class);

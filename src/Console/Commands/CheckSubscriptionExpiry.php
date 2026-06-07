@@ -29,7 +29,7 @@ class CheckSubscriptionExpiry extends Command
     {
         $lifecycleService = app(SubscriptionLifecycleService::class);
 
-        $toMarkExpired = Subscription::with(['subscriptionReminders'])->where('end_date', '<', now())->where('status', 'active')->get();
+        $toMarkExpired = Subscription::where('end_date', '<', now())->where('status', 'active')->get();
 
         foreach ($toMarkExpired as $subscription) {
             $lifecycleService->expire($subscription);

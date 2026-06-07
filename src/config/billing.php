@@ -8,7 +8,6 @@ return [
         'subscription_plan' => \Lyre\Billing\Models\SubscriptionPlan::class,
         'invoice' => \Lyre\Billing\Models\Invoice::class,
         'subscription_entitlement' => \Lyre\Billing\Models\SubscriptionEntitlement::class,
-        'legacy_subscription_product' => env('BILLING_LEGACY_SUBSCRIPTION_PRODUCT_MODEL'),
     ],
     'providers' => [
         'mpesa' => [
@@ -48,7 +47,6 @@ return [
         'provider' => env('BILLING_SUBSCRIPTION_PROVIDER', 'paypal'),
     ],
     'entitlements' => [
-        // Legacy-compat map for query payloads like ?product=exam,1,2
         'type_map' => [
             'exam' => env('BILLING_ENTITLEMENT_EXAM_MODEL'),
             'assessment' => env('BILLING_ENTITLEMENT_ASSESSMENT_MODEL'),

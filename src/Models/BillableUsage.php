@@ -12,14 +12,19 @@ class BillableUsage extends Model
 
     protected $fillable = [
         'billable_item_id',
+        'subscription_id',
         'user_id',
         'amount',
+        'quantity',
         'recorded_at',
+        'metadata',
     ];
 
     protected $casts = [
         'amount' => 'float',
+        'quantity' => 'float',
         'recorded_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     public function billableItem()
@@ -30,5 +35,10 @@ class BillableUsage extends Model
     public function user()
     {
         return $this->belongsTo(BillingSupport::userModel());
+    }
+
+    public function subscription()
+    {
+        return $this->belongsTo(config('billing.models.subscription'));
     }
 }

@@ -23,7 +23,7 @@ class SubscriptionResource extends Resource
 
     public static function getNavigationGroup(): string | UnitEnum | null
     {
-        return 'Payments';
+        return 'Subscriptions';
     }
 
     protected static ?int $navigationSort = 16;

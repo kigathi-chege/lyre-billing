@@ -9,42 +9,42 @@ class PaypalModelBridge
 {
     public static function getPlanProductId(Model $plan): ?string
     {
-        return BillingSupport::getProviderValue($plan, 'paypal', 'product_id', 'paypal_product_id');
+        return BillingSupport::getProviderValue($plan, 'paypal', 'product_id');
     }
 
     public static function setPlanProductId(Model $plan, string $paypalProductId): void
     {
-        BillingSupport::setProviderValue($plan, 'paypal', 'product_id', $paypalProductId, 'paypal_product_id');
+        BillingSupport::setProviderValue($plan, 'paypal', 'product_id', $paypalProductId);
     }
 
     public static function getPlanId(Model $plan): ?string
     {
-        return BillingSupport::getProviderValue($plan, 'paypal', 'plan_id', 'paypal_plan_id');
+        return BillingSupport::getProviderValue($plan, 'paypal', 'plan_id');
     }
 
     public static function setPlanId(Model $plan, string $paypalPlanId): void
     {
-        BillingSupport::setProviderValue($plan, 'paypal', 'plan_id', $paypalPlanId, 'paypal_plan_id');
+        BillingSupport::setProviderValue($plan, 'paypal', 'plan_id', $paypalPlanId);
     }
 
     public static function getSubscriptionId(Model $subscription): ?string
     {
-        return BillingSupport::getProviderValue($subscription, 'paypal', 'subscription_id', 'paypal_id');
+        return BillingSupport::getProviderValue($subscription, 'paypal', 'subscription_id');
     }
 
     public static function setSubscriptionId(Model $subscription, string $paypalSubscriptionId): void
     {
-        BillingSupport::setProviderValue($subscription, 'paypal', 'subscription_id', $paypalSubscriptionId, 'paypal_id');
+        BillingSupport::setProviderValue($subscription, 'paypal', 'subscription_id', $paypalSubscriptionId);
     }
 
     public static function setApprovalLink(Model $subscription, ?string $approvalLink): void
     {
-        BillingSupport::setProviderValue($subscription, 'paypal', 'approval_link', $approvalLink, 'link');
+        BillingSupport::setProviderValue($subscription, 'paypal', 'approval_link', $approvalLink);
     }
 
     public static function setStartTime(Model $subscription, string $startTime): void
     {
-        BillingSupport::setProviderValue($subscription, 'paypal', 'start_time', $startTime, 'start_time');
+        BillingSupport::setProviderValue($subscription, 'paypal', 'start_time', $startTime);
     }
 
     public static function renewLink(string $providerSubscriptionId): string
@@ -58,9 +58,8 @@ class PaypalModelBridge
 
         return $subscriptionClass::query()
             ->where(function ($query) use ($providerId) {
-                $query->where('paypal_id', $providerId);
-                $query->orWhere('metadata->providers->paypal->subscription_id', $providerId);
-                $query->orWhere('metadata->paypal_subscription_id', $providerId);
+                $query->where('metadata->providers->paypal->subscription_id', $providerId)
+                    ->orWhere('metadata->paypal_subscription_id', $providerId);
             })
             ->firstOrFail();
     }

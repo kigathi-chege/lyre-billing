@@ -26,7 +26,7 @@ class SubscriptionPlanResource extends Resource
 
     public static function getNavigationGroup(): string | UnitEnum | null
     {
-        return 'Payments';
+        return 'Subscriptions';
     }
 
     protected static ?int $navigationSort = 17;
@@ -64,11 +64,33 @@ class SubscriptionPlanResource extends Resource
                     ->required()
                     ->numeric()
                     ->default(0),
+                Forms\Components\Select::make('kind')
+                    ->options([
+                        'main' => 'Main',
+                        'per_exam' => 'Per Exam',
+                    ])
+                    ->default('per_exam')
+                    ->required(),
+                Forms\Components\Select::make('entitlement_mode')
+                    ->options([
+                        'fixed' => 'Fixed',
+                        'quota' => 'Quota',
+                    ])
+                    ->default('fixed')
+                    ->required(),
+                Forms\Components\Select::make('visibility')
+                    ->options([
+                        'public' => 'Public',
+                        'hidden' => 'Hidden',
+                    ])
+                    ->default('public')
+                    ->required(),
                 Forms\Components\Select::make('status')
                     ->options([
                         'active' => 'Active',
                         'inactive' => 'Inactive',
                     ]),
+                JsonColumn::make('entitlements_config'),
                 TiptapEditor::make('description')
                     ->columnSpanFull(),
 
@@ -107,6 +129,12 @@ class SubscriptionPlanResource extends Resource
                 Tables\Columns\TextColumn::make('trial_days')
                     ->numeric()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('kind')
+                    ->badge(),
+                Tables\Columns\TextColumn::make('entitlement_mode')
+                    ->badge(),
+                Tables\Columns\TextColumn::make('visibility')
+                    ->badge(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->colors([

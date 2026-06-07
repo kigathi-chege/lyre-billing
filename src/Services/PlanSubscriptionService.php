@@ -221,42 +221,32 @@ class PlanSubscriptionService
 
     protected function syncCompatibilityEntitlements(Model $plan, Model $subscription): void
     {
-        // Compatibility bridge for Aspire-style query payload: ?product=exam,1,2,3
-        $productQuery = (string) request()->query('product', '');
-        if ($productQuery !== '') {
-            $parts = array_values(array_filter(explode(',', $productQuery)));
-            $typeToken = strtolower((string) array_shift($parts));
-            $ids = collect($parts)->map(fn ($id) => (int) $id)->filter(fn ($id) => $id > 0)->values();
-            $modelClass = config("billing.entitlements.type_map.{$typeToken}");
-
-            if ($modelClass && class_exists($modelClass)) {
-                foreach ($ids as $id) {
-                    SubscriptionEntitlement::firstOrCreate([
-                        'subscription_id' => $subscription->getKey(),
-                        'entitlable_type' => $modelClass,
-                        'entitlable_id' => $id,
-                    ], [
-                        'source' => 'compat_legacy_product',
-                    ]);
-                }
+        $requestedEntitlements = $this->resolveRequestedEntitlements($plan);
+        if ($requestedEntitlements->isNotEmpty()) {
+            foreach ($requestedEntitlements as $entitlement) {
+                SubscriptionEntitlement::firstOrCreate([
+                    'subscription_id' => $subscription->getKey(),
+                    'entitlable_type' => $entitlement['type'],
+                    'entitlable_id' => $entitlement['id'],
+                ], [
+                    'source' => $entitlement['source'],
+                ]);
             }
 
             return;
         }
 
-        // Generic single-resource plans can declare their entitlement via the plan's morph target.
-        if (
-            method_exists($plan, 'product')
-            && ! empty($plan->getAttribute('product_type'))
-            && ! empty($plan->getAttribute('product_id'))
-            && class_exists((string) $plan->getAttribute('product_type'))
-        ) {
+        $primaryEntitlement = method_exists($plan, 'primaryEntitlement')
+            ? $plan->primaryEntitlement()
+            : null;
+
+        if (is_array($primaryEntitlement) && ! empty($primaryEntitlement['type']) && ! empty($primaryEntitlement['id'])) {
             SubscriptionEntitlement::firstOrCreate([
                 'subscription_id' => $subscription->getKey(),
-                'entitlable_type' => (string) $plan->getAttribute('product_type'),
-                'entitlable_id' => (int) $plan->getAttribute('product_id'),
+                'entitlable_type' => (string) $primaryEntitlement['type'],
+                'entitlable_id' => (int) $primaryEntitlement['id'],
             ], [
-                'source' => 'plan_product',
+                'source' => 'plan_primary_entitlement',
             ]);
 
             return;
@@ -283,5 +273,109 @@ class PlanSubscriptionService
                 'source' => 'plan',
             ]);
         }
+    }
+
+    protected function resolveRequestedEntitlements(Model $plan)
+    {
+        $entitlements = collect();
+        $kind = (string) ($plan->getAttribute('kind') ?: 'per_exam');
+        $mode = (string) ($plan->getAttribute('entitlement_mode') ?: 'fixed');
+        $config = $plan->getAttribute('entitlements_config');
+        $config = is_array($config) ? $config : [];
+
+        if ($kind === 'main' && $mode === 'fixed') {
+            foreach ((array) data_get($config, 'fixed', []) as $entry) {
+                $typeToken = strtolower((string) data_get($entry, 'type'));
+                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
+                $ids = collect((array) data_get($entry, 'ids', []))
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => $id > 0);
+
+                if (! $modelClass || ! class_exists($modelClass)) {
+                    continue;
+                }
+
+                foreach ($ids as $id) {
+                    $entitlements->push([
+                        'type' => $modelClass,
+                        'id' => $id,
+                        'source' => 'plan_fixed',
+                    ]);
+                }
+            }
+        }
+
+        if ($kind === 'main' && $mode === 'quota') {
+            foreach ($this->resolveRequestedSelections() as $typeToken => $ids) {
+                $limit = data_get($config, "quota.{$typeToken}_slots");
+                if ($limit !== 'all' && $limit !== null && count($ids) > (int) $limit) {
+                    throw CommonException::fromMessage("Too many {$typeToken} selections for this plan.", 422);
+                }
+
+                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
+                if (! $modelClass || ! class_exists($modelClass)) {
+                    continue;
+                }
+
+                foreach ($ids as $id) {
+                    $entitlements->push([
+                        'type' => $modelClass,
+                        'id' => (int) $id,
+                        'source' => 'plan_quota',
+                    ]);
+                }
+            }
+
+            foreach ((array) data_get($config, 'quota', []) as $quotaKey => $limit) {
+                if ($limit !== 'all' || ! str_ends_with((string) $quotaKey, '_slots')) {
+                    continue;
+                }
+
+                $typeToken = str_replace('_slots', '', (string) $quotaKey);
+                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
+                if (! $modelClass || ! class_exists($modelClass)) {
+                    continue;
+                }
+
+                $ids = $modelClass::query()->pluck('id');
+                foreach ($ids as $id) {
+                    $entitlements->push([
+                        'type' => $modelClass,
+                        'id' => (int) $id,
+                        'source' => 'plan_quota_all',
+                    ]);
+                }
+            }
+        }
+
+        if ($kind === 'main' && $mode === 'quota' && $entitlements->isEmpty()) {
+            return collect();
+        }
+
+        return $entitlements->unique(fn ($item) => $item['type'].'-'.$item['id'])->values();
+    }
+
+    protected function resolveRequestedSelections(): array
+    {
+        $selectionPayload = request()->query('selection', request()->input('selection', []));
+        if (! is_array($selectionPayload)) {
+            return [];
+        }
+
+        $selections = [];
+
+        foreach ($selectionPayload as $typeToken => $ids) {
+            $normalizedIds = collect(is_array($ids) ? $ids : explode(',', (string) $ids))
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => $id > 0)
+                ->values()
+                ->all();
+
+            if ($normalizedIds !== []) {
+                $selections[strtolower((string) $typeToken)] = $normalizedIds;
+            }
+        }
+
+        return $selections;
     }
 }
