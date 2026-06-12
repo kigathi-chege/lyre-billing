@@ -237,12 +237,11 @@ class PlanSubscriptionService
         bool $allowRecovery = true
     ): \Stripe\Checkout\Session {
         try {
-            return $stripe->checkout->sessions->create([
+            $payload = [
                 'mode' => 'subscription',
                 'customer' => $customerId,
                 'success_url' => $successUrlWithSession,
                 'cancel_url' => $cancelUrl,
-                'client_reference_id' => $invoice->invoice_number,
                 'line_items' => [
                     [
                         'price' => StripeModelBridge::getPlanPriceId($plan),
@@ -265,7 +264,13 @@ class PlanSubscriptionService
                     ],
                     ...($plan->trial_days > 0 ? ['trial_period_days' => (int) $plan->trial_days] : []),
                 ],
-            ]);
+            ];
+
+            if (! empty($invoice->invoice_number)) {
+                $payload['client_reference_id'] = $invoice->invoice_number;
+            }
+
+            return $stripe->checkout->sessions->create($payload);
         } catch (InvalidRequestException $exception) {
             if (! $allowRecovery) {
                 throw $exception;

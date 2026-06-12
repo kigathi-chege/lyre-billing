@@ -196,6 +196,8 @@ class PlanSubscriptionService
                 $invoice->save();
             }
 
+            $this->ensureInvoiceNumber($invoice);
+
             return $invoice;
         }
 
@@ -206,8 +208,10 @@ class PlanSubscriptionService
                 'provider' => data_get($subscription, 'metadata.providers')
                     ? array_key_first((array) data_get($subscription, 'metadata.providers'))
                     : null,
-            ],
+                ],
         ]);
+
+        $this->ensureInvoiceNumber($invoice);
 
         Log::info('billing.plan_subscription.pending_invoice_created', [
             'subscription_id' => $subscription->getKey(),
@@ -217,6 +221,21 @@ class PlanSubscriptionService
         ]);
 
         return $invoice;
+    }
+
+    protected function ensureInvoiceNumber(Invoice $invoice): void
+    {
+        if ($invoice->invoice_number) {
+            return;
+        }
+
+        $invoice->invoice_number = 'INV-' . now()->format('Ym') . '-' . str_pad((string) $invoice->id, 6, '0', STR_PAD_LEFT);
+        $invoice->saveQuietly();
+
+        Log::info('billing.plan_subscription.invoice_number_backfilled', [
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
+        ]);
     }
 
     protected function syncCompatibilityEntitlements(Model $plan, Model $subscription): void
