@@ -3,7 +3,7 @@
 namespace Lyre\Billing\Http\Controllers;
 
 use Lyre\Billing\Models\Transaction;
-use Lyre\Billing\Contacts\TransactionRepositoryInterface;
+use Lyre\Billing\Contracts\TransactionRepositoryInterface;
 use Lyre\Controller;
 
 class TransactionController extends Controller

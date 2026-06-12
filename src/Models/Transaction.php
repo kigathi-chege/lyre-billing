@@ -5,9 +5,15 @@ namespace Lyre\Billing\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Lyre\Model;
 use Lyre\Billing\Support\BillingSupport;
+use Lyre\Scopes\OwnsScope;
 
 class Transaction extends Model
 {
+    public static function booted()
+    {
+        static::addGlobalScope(new OwnsScope);
+    }
+
     use HasFactory;
 
     protected $casts = [

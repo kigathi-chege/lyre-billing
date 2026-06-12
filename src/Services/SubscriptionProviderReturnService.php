@@ -20,13 +20,17 @@ class SubscriptionProviderReturnService
         $provider = $this->resolveProvider($payload);
         $providerSubscriptionId = (string) ($payload['subscription_id'] ?? $payload['ba_token'] ?? '');
         $checkoutSessionId = (string) ($payload['session_id'] ?? '');
+        $localSubscriptionId = (string) ($payload['local_subscription_id'] ?? '');
+        $localInvoiceId = (string) ($payload['local_invoice_id'] ?? '');
         $returnState = $this->resolveReturnState($payload, $providerSubscriptionId, $checkoutSessionId);
-        $subscription = $this->resolveSubscription($provider, $providerSubscriptionId, $checkoutSessionId);
+        $subscription = $this->resolveSubscription($provider, $providerSubscriptionId, $checkoutSessionId, $localSubscriptionId);
 
         Log::info('billing.provider_return.received', [
             'provider' => $provider,
             'provider_subscription_id' => $providerSubscriptionId ?: null,
             'checkout_session_id' => $checkoutSessionId ?: null,
+            'local_subscription_id' => $localSubscriptionId ?: null,
+            'local_invoice_id' => $localInvoiceId ?: null,
             'return_state' => $returnState,
             'current_user_id' => auth()->id(),
             'subscription_id' => $subscription?->id,
@@ -37,6 +41,8 @@ class SubscriptionProviderReturnService
                 'provider' => $provider,
                 'provider_subscription_id' => $providerSubscriptionId ?: null,
                 'checkout_session_id' => $checkoutSessionId ?: null,
+                'local_subscription_id' => $localSubscriptionId ?: null,
+                'local_invoice_id' => $localInvoiceId ?: null,
                 'provider_return_state' => $returnState,
                 'recorded' => false,
             ];
@@ -66,23 +72,27 @@ class SubscriptionProviderReturnService
 
         $subscription->update($updates);
 
+        $invoiceModel = $this->resolveInvoiceModel($subscription, $localInvoiceId);
+
         $this->upsertTransactionTelemetry(
             $subscription,
-            $providerSubscriptionId
-                ?: $checkoutSessionId
-                ?: ($provider === 'paypal' ? ((string) data_get($subscription->metadata, 'providers.paypal.subscription_id', '')) : '')
-                ?: (string) $subscription->id,
+            $providerSubscriptionId ?: $checkoutSessionId,
             [
                 'status' => $returnState === 'cancelled' ? 'cancelled' : 'pending',
+                'raw_callback' => json_encode($payload),
                 'raw_response' => $providerResponse ? json_encode($providerResponse) : null,
                 'metadata' => [
                     'provider' => $provider,
+                    'checkout_session_id' => $checkoutSessionId ?: null,
+                    'local_subscription_id' => $localSubscriptionId ?: null,
+                    'local_invoice_id' => $localInvoiceId ?: null,
                     'provider_returned_at' => $returnedAt->toIso8601String(),
                     'provider_return_state' => $returnState,
                     'provider_return_payload' => $payload,
                 ],
             ],
-            $provider
+            $provider,
+            $invoiceModel
         );
 
         if ($returnState === 'cancelled') {
@@ -124,8 +134,12 @@ class SubscriptionProviderReturnService
         return 'paypal';
     }
 
-    protected function resolveSubscription(string $provider, string $providerSubscriptionId, string $checkoutSessionId): mixed
+    protected function resolveSubscription(string $provider, string $providerSubscriptionId, string $checkoutSessionId, string $localSubscriptionId = ''): mixed
     {
+        if ($localSubscriptionId !== '') {
+            return $this->findByLocalSubscriptionId($localSubscriptionId);
+        }
+
         if ($provider === 'stripe' && $checkoutSessionId !== '') {
             return $this->findByStripeCheckoutSessionId($checkoutSessionId);
         }
@@ -258,9 +272,28 @@ class SubscriptionProviderReturnService
         return $subscriptionModel->newQueryWithoutScopes();
     }
 
-    protected function upsertTransactionTelemetry(mixed $subscription, string $providerReference, array $attributes, string $provider): ?Transaction
+    protected function findByLocalSubscriptionId(string $subscriptionId): mixed
     {
-        $invoiceModel = Invoice::query()
+        return $this->subscriptionQueryWithoutScopes()
+            ->whereKey($subscriptionId)
+            ->first();
+    }
+
+    protected function resolveInvoiceModel(mixed $subscription, string $localInvoiceId = ''): ?Invoice
+    {
+        if ($localInvoiceId !== '') {
+            return Invoice::query()->find($localInvoiceId);
+        }
+
+        return Invoice::query()
+            ->where('subscription_id', $subscription->id)
+            ->latest('id')
+            ->first();
+    }
+
+    protected function upsertTransactionTelemetry(mixed $subscription, string $providerReference, array $attributes, string $provider, ?Invoice $invoiceModel = null): ?Transaction
+    {
+        $invoiceModel ??= Invoice::query()
             ->where('subscription_id', $subscription->id)
             ->latest('id')
             ->first();
@@ -270,22 +303,32 @@ class SubscriptionProviderReturnService
             return null;
         }
 
-        $transaction = Transaction::query()
-            ->when($invoiceModel, fn ($query) => $query->where('invoice_id', $invoiceModel->id))
-            ->where('provider_reference', $providerReference)
-            ->first();
+        $transactionQuery = Transaction::query()
+            ->when($invoiceModel, fn ($query) => $query->where('invoice_id', $invoiceModel->id));
+
+        $transaction = $providerReference !== ''
+            ? (clone $transactionQuery)->where('provider_reference', $providerReference)->first()
+            : null;
+
+        if (! $transaction && $invoiceModel) {
+            $transaction = (clone $transactionQuery)
+                ->where('payment_method_id', $paymentMethod->id)
+                ->latest('id')
+                ->first();
+        }
 
         if (! $transaction) {
             $transaction = new Transaction([
                 'amount' => (float) ($invoiceModel?->amount ?? $subscription->subscriptionPlan?->price ?? 0),
-                'currency' => 'KES',
+                'currency' => strtoupper((string) ($subscription->subscriptionPlan?->currency ?: 'USD')),
                 'invoice_id' => $invoiceModel?->id,
                 'user_id' => $subscription->user_id,
                 'payment_method_id' => $paymentMethod->id,
-                'provider_reference' => $providerReference,
+                'provider_reference' => $providerReference ?: null,
             ]);
         }
 
+        $attributes = $this->preserveFinalTransactionStatus($transaction, $attributes, $provider);
         $existingMetadata = is_array($transaction->metadata) ? $transaction->metadata : [];
         $incomingMetadata = is_array($attributes['metadata'] ?? null) ? $attributes['metadata'] : [];
 
@@ -304,8 +347,37 @@ class SubscriptionProviderReturnService
             $transaction->payment_method_id = $paymentMethod->id;
         }
 
+        if ($providerReference !== '' && ! $transaction->provider_reference) {
+            $transaction->provider_reference = $providerReference;
+        }
+
         $transaction->save();
 
+        Log::info('billing.provider_return.transaction_upserted', [
+            'provider' => $provider,
+            'transaction_id' => $transaction->getKey(),
+            'subscription_id' => $subscription->id,
+            'invoice_id' => $transaction->invoice_id,
+            'provider_reference' => $transaction->provider_reference,
+            'status' => $transaction->status,
+        ]);
+
         return $transaction;
+    }
+
+    protected function preserveFinalTransactionStatus(Transaction $transaction, array $attributes, string $provider): array
+    {
+        $incomingStatus = $attributes['status'] ?? null;
+        $currentStatus = (string) ($transaction->status ?? '');
+
+        if (
+            $provider === 'stripe'
+            && $incomingStatus === 'pending'
+            && in_array($currentStatus, ['completed', 'cancelled', 'failed', 'refunded'], true)
+        ) {
+            unset($attributes['status']);
+        }
+
+        return $attributes;
     }
 }

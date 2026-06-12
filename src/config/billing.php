@@ -16,7 +16,7 @@ return [
         ],
         'paypal' => [
             'enabled' => env('BILLING_PAYPAL_ENABLED', true),
-            'callback_url' => env('BILLING_PAYPAL_CALLBACK_URL', env('APP_URL') . '/payments/paypal/callback'),
+            'callback_url' => env('BILLING_PAYPAL_CALLBACK_URL', env('APP_URL') . '/api/billing/webhook?provider=paypal'),
             'return_url' => env('BILLING_PAYPAL_RETURN_URL', env('APP_URL') . '/api/billing/subscriptions/provider-return-redirect?provider=paypal'),
             'cancel_url' => env('BILLING_PAYPAL_CANCEL_URL', env('APP_URL') . '/api/billing/subscriptions/provider-cancel-redirect?provider=paypal'),
             'plan_subscription_service' => \Lyre\Billing\Services\Paypal\PlanSubscriptionService::class,
@@ -25,7 +25,7 @@ return [
         ],
         'stripe' => [
             'enabled' => env('BILLING_STRIPE_ENABLED', true),
-            'callback_url' => env('BILLING_STRIPE_CALLBACK_URL', env('APP_URL') . '/payments/stripe/callback'),
+            'callback_url' => env('BILLING_STRIPE_CALLBACK_URL', env('APP_URL') . '/api/billing/webhook?provider=stripe'),
             'return_url' => env('BILLING_STRIPE_RETURN_URL', env('APP_URL') . '/api/billing/subscriptions/provider-return-redirect?provider=stripe'),
             'cancel_url' => env('BILLING_STRIPE_CANCEL_URL', env('APP_URL') . '/api/billing/subscriptions/provider-cancel-redirect?provider=stripe'),
             'webhook_secrets' => env('STRIPE_WEBHOOK_SECRETS'),

@@ -5,6 +5,8 @@ namespace Lyre\Billing\Services\Stripe;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Lyre\Billing\Models\Invoice;
+use Lyre\Billing\Models\PaymentMethod;
+use Lyre\Billing\Models\Transaction;
 use Lyre\Billing\Support\BillingSupport;
 use Stripe\Exception\InvalidRequestException;
 
@@ -32,6 +34,10 @@ class PlanSubscriptionService
 
         $successUrl = (string) config('billing.providers.stripe.return_url');
         $cancelUrl = (string) config('billing.providers.stripe.cancel_url', $successUrl);
+        $successUrl = $this->appendQueryParameter($successUrl, 'local_subscription_id', (string) $subscription->getKey());
+        $successUrl = $this->appendQueryParameter($successUrl, 'local_invoice_id', (string) $invoice->getKey());
+        $cancelUrl = $this->appendQueryParameter($cancelUrl, 'local_subscription_id', (string) $subscription->getKey());
+        $cancelUrl = $this->appendQueryParameter($cancelUrl, 'local_invoice_id', (string) $invoice->getKey());
         $successUrlWithSession = $this->appendQueryParameter($successUrl, 'session_id', '{CHECKOUT_SESSION_ID}');
         Log::info('billing.stripe_checkout.urls_resolved', [
             'subscription_id' => $subscription->getKey(),
@@ -54,6 +60,8 @@ class PlanSubscriptionService
             'session_id' => $session->id,
             'session_url' => $session->url,
         ]);
+
+        $this->recordCheckoutTransaction($plan, $subscription, $invoice, $session, $customerId);
 
         StripeModelBridge::setCheckoutSessionId($subscription, $session->id);
         StripeModelBridge::setCheckoutUrl($subscription, $session->url);
@@ -374,5 +382,76 @@ class PlanSubscriptionService
         $separator = str_contains($url, '?') ? '&' : '?';
 
         return rtrim($url, '/') . "{$separator}{$key}={$value}";
+    }
+
+    protected function recordCheckoutTransaction(
+        Model $plan,
+        Model $subscription,
+        Invoice $invoice,
+        \Stripe\Checkout\Session $session,
+        string $customerId
+    ): void {
+        $paymentMethod = PaymentMethod::get('stripe');
+        if (! $paymentMethod) {
+            Log::warning('billing.stripe_checkout.transaction_payment_method_missing', [
+                'subscription_id' => $subscription->getKey(),
+                'invoice_id' => $invoice->getKey(),
+            ]);
+
+            return;
+        }
+
+        $transaction = Transaction::query()
+            ->where('invoice_id', $invoice->getKey())
+            ->where(function ($query) use ($session) {
+                $query->where('provider_reference', (string) $session->id)
+                    ->orWhereNull('provider_reference');
+            })
+            ->latest('id')
+            ->first();
+
+        if (! $transaction) {
+            $transaction = new Transaction([
+                'invoice_id' => $invoice->getKey(),
+                'user_id' => $subscription->user_id,
+                'payment_method_id' => $paymentMethod->id,
+            ]);
+        }
+
+        $existingMetadata = is_array($transaction->metadata) ? $transaction->metadata : [];
+        $incomingMetadata = [
+            'provider' => 'stripe',
+            'checkout_session_id' => (string) $session->id,
+            'checkout_url' => (string) $session->url,
+            'customer_id' => $customerId,
+            'subscription_id' => (string) $subscription->getKey(),
+            'subscription_plan_id' => (string) $plan->getKey(),
+            'invoice_id' => (string) $invoice->getKey(),
+            'invoice_number' => (string) $invoice->invoice_number,
+        ];
+
+        $transaction->status = 'pending';
+        $transaction->amount = (float) ($invoice->amount ?? $plan->price ?? 0);
+        $transaction->currency = strtoupper((string) ($plan->currency ?: 'USD'));
+        $transaction->provider_reference = (string) $session->id;
+        $transaction->raw_request = json_encode([
+            'mode' => 'subscription',
+            'customer' => $customerId,
+            'invoice_id' => (string) $invoice->getKey(),
+            'invoice_number' => (string) $invoice->invoice_number,
+            'subscription_id' => (string) $subscription->getKey(),
+            'subscription_plan_id' => (string) $plan->getKey(),
+        ]);
+        $transaction->raw_response = json_encode($session);
+        $transaction->metadata = array_replace_recursive($existingMetadata, $incomingMetadata);
+        $transaction->save();
+
+        Log::info('billing.stripe_checkout.transaction_recorded', [
+            'transaction_id' => $transaction->getKey(),
+            'subscription_id' => $subscription->getKey(),
+            'invoice_id' => $invoice->getKey(),
+            'provider_reference' => $transaction->provider_reference,
+            'status' => $transaction->status,
+        ]);
     }
 }

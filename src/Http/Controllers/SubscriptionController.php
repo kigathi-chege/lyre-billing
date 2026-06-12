@@ -49,4 +49,24 @@ class SubscriptionController extends Controller
 
         return redirect()->away($this->providerReturnService->frontendRedirectUrl('cancelled'));
     }
+
+    public function revokeRenewal(string $subscription)
+    {
+        return __response(
+            true,
+            'Subscription renewal revoked',
+            $this->modelRepository->revokeRenewal($subscription),
+            200
+        );
+    }
+
+    public function restoreRenewal(string $subscription)
+    {
+        return __response(
+            true,
+            'Subscription renewal restored',
+            $this->modelRepository->restoreRenewal($subscription),
+            200
+        );
+    }
 }

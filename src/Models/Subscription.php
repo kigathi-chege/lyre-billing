@@ -3,7 +3,7 @@
 namespace Lyre\Billing\Models;
 
 use Carbon\CarbonInterface;
-use Lyre\Billing\Scopes\OwnsScope;
+use Lyre\Scopes\OwnsScope;
 // use App\Services\Paypal\Subscription as PaypalSubscription;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

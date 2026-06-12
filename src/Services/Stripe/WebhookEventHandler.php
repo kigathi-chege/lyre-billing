@@ -4,7 +4,10 @@ namespace Lyre\Billing\Services\Stripe;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Arr;
 use Lyre\Billing\Models\Invoice;
+use Lyre\Billing\Models\PaymentMethod;
+use Lyre\Billing\Models\Transaction;
 use Lyre\Billing\Services\SubscriptionLifecycleService;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\SignatureVerificationException;
@@ -215,6 +218,21 @@ class WebhookEventHandler
         ]);
 
         $invoice = $invoiceNumber ? Invoice::where('invoice_number', $invoiceNumber)->first() : null;
+        $this->upsertTransactionTelemetry(
+            $subscription,
+            (string) $checkoutSessionId,
+            [
+                'status' => 'completed',
+                'raw_callback' => json_encode($session),
+                'metadata' => [
+                    'provider' => 'stripe',
+                    'checkout_session_id' => (string) $checkoutSessionId,
+                    'provider_subscription_id' => (string) $subscriptionId,
+                    'checkout_completed_at' => now()->toIso8601String(),
+                ],
+            ],
+            $invoice
+        );
         app(SubscriptionLifecycleService::class)->approveByProviderId((string) $subscriptionId, $invoice, 'stripe');
     }
 
@@ -246,6 +264,26 @@ class WebhookEventHandler
             $subscription->end_date = now()->setTimestamp((int) data_get($stripeSubscription, 'current_period_end'));
         }
         $subscription->save();
+
+        $this->upsertTransactionTelemetry(
+            $subscription,
+            $providerId,
+            [
+                'status' => match ($normalized) {
+                    'active' => 'completed',
+                    'canceled' => 'cancelled',
+                    'paused' => 'failed',
+                    default => 'pending',
+                },
+                'raw_callback' => json_encode($stripeSubscription),
+                'metadata' => [
+                    'provider' => 'stripe',
+                    'provider_subscription_id' => $providerId,
+                    'subscription_status' => $status,
+                    'subscription_synced_at' => now()->toIso8601String(),
+                ],
+            ]
+        );
     }
 
     protected function subscriptionSuspended($stripeSubscription): void
@@ -253,6 +291,22 @@ class WebhookEventHandler
         $providerId = (string) data_get($stripeSubscription, 'id', '');
         if (! $providerId) {
             return;
+        }
+
+        if ($subscription = StripeModelBridge::findByStripeSubscriptionId($providerId)) {
+            $this->upsertTransactionTelemetry(
+                $subscription,
+                $providerId,
+                [
+                    'status' => 'cancelled',
+                    'raw_callback' => json_encode($stripeSubscription),
+                    'metadata' => [
+                        'provider' => 'stripe',
+                        'provider_subscription_id' => $providerId,
+                        'subscription_cancelled_at' => now()->toIso8601String(),
+                    ],
+                ]
+            );
         }
 
         app(SubscriptionLifecycleService::class)->suspendByProviderId($providerId, 'stripe');
@@ -274,6 +328,24 @@ class WebhookEventHandler
                 'status' => 'failed',
                 'amount_paid' => 0,
             ]);
+        }
+
+        if ($subscription = StripeModelBridge::findByStripeSubscriptionId($providerId)) {
+            $this->upsertTransactionTelemetry(
+                $subscription,
+                $providerId,
+                [
+                    'status' => 'failed',
+                    'raw_callback' => json_encode($invoiceObject),
+                    'metadata' => [
+                        'provider' => 'stripe',
+                        'provider_subscription_id' => $providerId,
+                        'webhook_event_type' => 'invoice.payment_failed',
+                        'webhook_received_at' => now()->toIso8601String(),
+                    ],
+                ],
+                $invoice
+            );
         }
 
         app(SubscriptionLifecycleService::class)->paymentFailedByProviderId($providerId, $invoice, 'stripe');
@@ -298,6 +370,112 @@ class WebhookEventHandler
             ]);
         }
 
+        if ($subscription = StripeModelBridge::findByStripeSubscriptionId($providerId)) {
+            $this->upsertTransactionTelemetry(
+                $subscription,
+                $providerId,
+                [
+                    'status' => 'completed',
+                    'raw_callback' => json_encode($invoiceObject),
+                    'metadata' => [
+                        'provider' => 'stripe',
+                        'provider_subscription_id' => $providerId,
+                        'webhook_event_type' => 'invoice.paid',
+                        'webhook_received_at' => now()->toIso8601String(),
+                    ],
+                ],
+                $invoice
+            );
+        }
+
         app(SubscriptionLifecycleService::class)->approveByProviderId($providerId, $invoice, 'stripe');
+    }
+
+    protected function upsertTransactionTelemetry(mixed $subscription, string $providerReference, array $attributes, ?Invoice $invoiceModel = null): ?Transaction
+    {
+        $invoiceModel ??= Invoice::query()
+            ->where('subscription_id', $subscription->id)
+            ->latest('id')
+            ->first();
+        $paymentMethod = PaymentMethod::get('stripe');
+
+        if (! $paymentMethod) {
+            return null;
+        }
+
+        $transactionQuery = Transaction::query()
+            ->when($invoiceModel, fn ($query) => $query->where('invoice_id', $invoiceModel->id));
+
+        $transaction = $providerReference !== ''
+            ? (clone $transactionQuery)->where('provider_reference', $providerReference)->first()
+            : null;
+
+        if (! $transaction && $invoiceModel) {
+            $transaction = (clone $transactionQuery)
+                ->where('payment_method_id', $paymentMethod->id)
+                ->latest('id')
+                ->first();
+        }
+
+        if (! $transaction) {
+            $transaction = new Transaction([
+                'amount' => (float) ($invoiceModel?->amount ?? $subscription->subscriptionPlan?->price ?? 0),
+                'currency' => strtoupper((string) ($subscription->subscriptionPlan?->currency ?: 'USD')),
+                'invoice_id' => $invoiceModel?->id,
+                'user_id' => $subscription->user_id,
+                'payment_method_id' => $paymentMethod->id,
+                'provider_reference' => $providerReference ?: null,
+            ]);
+        }
+
+        $attributes = $this->preserveFinalTransactionStatus($transaction, $attributes);
+        $existingMetadata = is_array($transaction->metadata) ? $transaction->metadata : [];
+        $incomingMetadata = is_array($attributes['metadata'] ?? null) ? $attributes['metadata'] : [];
+
+        $transaction->fill(Arr::except($attributes, ['metadata']));
+        $transaction->metadata = array_replace_recursive($existingMetadata, $incomingMetadata);
+
+        if (! $transaction->invoice_id && $invoiceModel) {
+            $transaction->invoice_id = $invoiceModel->id;
+        }
+
+        if (! $transaction->user_id) {
+            $transaction->user_id = $subscription->user_id;
+        }
+
+        if (! $transaction->payment_method_id) {
+            $transaction->payment_method_id = $paymentMethod->id;
+        }
+
+        if ($providerReference !== '' && ! $transaction->provider_reference) {
+            $transaction->provider_reference = $providerReference;
+        }
+
+        $transaction->save();
+
+        Log::info('billing.stripe_webhook.transaction_upserted', [
+            'transaction_id' => $transaction->getKey(),
+            'subscription_id' => $subscription->id,
+            'invoice_id' => $transaction->invoice_id,
+            'provider_reference' => $transaction->provider_reference,
+            'status' => $transaction->status,
+        ]);
+
+        return $transaction;
+    }
+
+    protected function preserveFinalTransactionStatus(Transaction $transaction, array $attributes): array
+    {
+        $incomingStatus = $attributes['status'] ?? null;
+        $currentStatus = (string) ($transaction->status ?? '');
+
+        if (
+            $incomingStatus === 'pending'
+            && in_array($currentStatus, ['completed', 'cancelled', 'failed', 'refunded'], true)
+        ) {
+            unset($attributes['status']);
+        }
+
+        return $attributes;
     }
 }
