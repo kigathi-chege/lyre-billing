@@ -114,10 +114,11 @@ class SubscriptionProviderReturnService
     public function frontendRedirectUrl(string $status): string
     {
         $baseUrl = rtrim((string) config('billing.client_url', config('app.client_url')), '/');
-        $path = auth()->check() && ! $this->userIsGuest(auth()->user()) ? '/dashboard' : '/login';
-        $query = http_build_query(['billing_status' => $status]);
+        $query = http_build_query([
+            'billing_status' => $status,
+        ]);
 
-        return "{$baseUrl}{$path}".($query ? "?{$query}" : '');
+        return "{$baseUrl}".($query ? "?{$query}" : '');
     }
 
     protected function resolveProvider(array $payload): string
