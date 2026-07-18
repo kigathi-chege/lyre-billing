@@ -8,7 +8,9 @@ use Lyre\Model;
 
 class SubscriptionPlan extends Model
 {
-    use HasFactory, HasFacet;
+    use HasFacet, HasFactory;
+
+    const ID_COLUMN = 'slug';
 
     protected $with = ['subscriptionPlanBillables'];
 
@@ -40,6 +42,7 @@ class SubscriptionPlan extends Model
     public function entitlements(): array
     {
         $entitlements = data_get($this->metadata, 'entitlements', []);
+
         return is_array($entitlements) ? $entitlements : [];
     }
 
