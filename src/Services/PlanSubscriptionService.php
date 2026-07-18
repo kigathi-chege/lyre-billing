@@ -259,7 +259,12 @@ class PlanSubscriptionService
             ? $plan->primaryEntitlement()
             : null;
 
-        if (is_array($primaryEntitlement) && ! empty($primaryEntitlement['type']) && ! empty($primaryEntitlement['id'])) {
+        if (
+            is_array($primaryEntitlement)
+            && ! empty($primaryEntitlement['type'])
+            && ! empty($primaryEntitlement['id'])
+            && class_exists((string) $primaryEntitlement['type'])
+        ) {
             SubscriptionEntitlement::firstOrCreate([
                 'subscription_id' => $subscription->getKey(),
                 'entitlable_type' => (string) $primaryEntitlement['type'],

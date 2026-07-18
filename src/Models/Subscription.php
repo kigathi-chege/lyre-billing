@@ -147,9 +147,19 @@ class Subscription extends Model
     {
         $entitlements = $this->relationLoaded('subscriptionEntitlements')
             ? $this->subscriptionEntitlements
-            : $this->subscriptionEntitlements()->with('entitlable')->get();
+            : $this->subscriptionEntitlements()->get();
 
-        return $entitlements
+        // Skip entitlements whose morph target class no longer exists (e.g. a
+        // removed model left dangling in the type column). Resolving such a row
+        // would fatal ("Class ... not found") and break serialization of the
+        // whole subscription. Load the morph only for the surviving rows.
+        $resolvable = $entitlements
+            ->filter(fn ($entitlement) => $entitlement->entitlable_type && class_exists($entitlement->entitlable_type))
+            ->values();
+
+        $resolvable->loadMissing('entitlable');
+
+        return $resolvable
             ->map(fn ($entitlement) => $entitlement->entitlable?->name ?? $entitlement->entitlable?->title ?? $entitlement->entitlable?->slug)
             ->filter()
             ->unique()
