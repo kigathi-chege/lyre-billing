@@ -3,6 +3,7 @@
 namespace Lyre\Billing\Repositories;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use Lyre\Exceptions\CommonException;
 use Lyre\Repository;
 use Lyre\Billing\Models\Subscription;
@@ -83,13 +84,20 @@ class SubscriptionRepository extends Repository implements SubscriptionRepositor
             throw new HttpException(403, 'Unauthorized');
         }
 
+        // Resolve by id and (only if the table actually has one) slug. The subscriptions
+        // table has no `slug` column, so querying it unconditionally throws
+        // "column slug does not exist"; guard it like Lyre's core find() does.
+        $hasSlug = Schema::hasColumn($this->model->getTable(), 'slug');
+
         $record = $this->model->query()
             ->where('user_id', $user->getAuthIdentifier())
-            ->where(function (Builder $query) use ($subscription) {
-                $query->where('slug', (string) $subscription);
-
+            ->where(function (Builder $query) use ($subscription, $hasSlug) {
                 if (is_numeric($subscription)) {
                     $query->orWhere('id', (int) $subscription);
+                }
+
+                if ($hasSlug) {
+                    $query->orWhere('slug', (string) $subscription);
                 }
             })
             ->first();
