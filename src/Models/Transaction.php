@@ -9,6 +9,13 @@ use Lyre\Scopes\OwnsScope;
 
 class Transaction extends Model
 {
+    /**
+     * Canonical statuses for the (non-enum, varchar) `status` column. Identity-mapped
+     * so Lyre's get_status_code validates against this list instead of throwing
+     * "Status config not found" when the status filter is applied.
+     */
+    const STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
+
     public static function booted()
     {
         static::addGlobalScope(new OwnsScope);

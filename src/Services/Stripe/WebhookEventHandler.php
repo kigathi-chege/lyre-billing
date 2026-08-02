@@ -359,13 +359,7 @@ class WebhookEventHandler
         StripeModelBridge::setCustomerId($subscription, (string) data_get($stripeSubscription, 'customer', ''));
         StripeModelBridge::setSubscriptionId($subscription, $providerId);
 
-        $normalized = match ($status) {
-            'active', 'trialing' => 'active',
-            'incomplete' => 'pending',
-            'past_due', 'incomplete_expired', 'unpaid', 'paused' => 'paused',
-            'canceled' => 'canceled',
-            default => (string) $subscription->status,
-        };
+        $normalized = self::mapStripeStatus($status, (string) $subscription->status);
 
         $normalized = $this->preserveMoreAdvancedSubscriptionStatus(
             $subscription,
@@ -1114,6 +1108,23 @@ class WebhookEventHandler
         }
 
         return $attributes;
+    }
+
+    /**
+     * Canonical Stripe subscription status -> local subscription status mapping.
+     * Single source of truth shared by the webhook handler and the reconciliation
+     * service. `incomplete` stays pending (payment/SCA not yet completed); dunning
+     * states map to paused; unknown Stripe statuses leave the local status unchanged.
+     */
+    public static function mapStripeStatus(string $stripeStatus, string $currentLocalStatus): string
+    {
+        return match ($stripeStatus) {
+            'active', 'trialing' => 'active',
+            'incomplete' => 'pending',
+            'past_due', 'incomplete_expired', 'unpaid', 'paused' => 'paused',
+            'canceled' => 'canceled',
+            default => $currentLocalStatus,
+        };
     }
 
     protected function preserveMoreAdvancedSubscriptionStatus(
