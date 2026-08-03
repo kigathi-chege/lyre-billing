@@ -728,6 +728,18 @@ class WebhookEventHandler
                 ],
                 $invoice
             );
+
+            // Advance coverage from the paid invoice's period end, so a renewal keeps
+            // end_date current even if the separate customer.subscription.updated event
+            // is missed/undelivered. Forward-only: a late/duplicate/out-of-order invoice
+            // must never rewind coverage.
+            if ($periodEnd = data_get($invoiceObject, 'period_end')) {
+                $newEnd = now()->setTimestamp((int) $periodEnd);
+                if (! $subscription->end_date || $newEnd->greaterThan($subscription->end_date)) {
+                    $subscription->end_date = $newEnd;
+                    $subscription->saveQuietly();
+                }
+            }
         }
 
         app(SubscriptionLifecycleService::class)->approveByProviderId($providerId, $invoice, 'stripe');

@@ -17,6 +17,18 @@
   - `POST /api/billing/webhook`
 - Filament resources via `LyreBillingFilamentPlugin`
 
+## Required Stripe webhook events
+The Stripe webhook endpoint (`POST /api/billing/webhook`) must have these events **enabled in the Stripe dashboard** — event selection is not managed by code. Missing events silently degrade lifecycle handling:
+
+- `checkout.session.completed` — activate a new subscription after checkout.
+- `invoice.paid` / `invoice.payment_succeeded` — record each payment (initial + renewals) and advance `end_date` from the invoice period end.
+- `invoice.payment_failed` — dunning / payment-failed notice.
+- `customer.subscription.created` / `customer.subscription.updated` — sync status + coverage `end_date` (plan changes, cancellations scheduled at period end).
+- `customer.subscription.deleted` — mark cancelled.
+- `customer.subscription.resumed` — resume after pause.
+
+Note: since `invoice.paid` now advances `end_date` itself (forward-only), coverage no longer depends on `customer.subscription.updated` being delivered — but `.updated`/`.deleted` remain required for cancellations and plan changes.
+
 ## Install
 ```bash
 composer require lyre/billing
