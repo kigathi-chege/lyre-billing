@@ -64,6 +64,13 @@ class SubscriptionPlanResource extends Resource
                     ->required()
                     ->numeric()
                     ->default(0),
+                Forms\Components\TextInput::make('grace_days')
+                    ->numeric()
+                    ->nullable()
+                    ->minValue(0)
+                    ->maxValue(31)
+                    ->placeholder('Default: 2')
+                    ->helperText('Days of access retained after coverage ends. Blank = system default.'),
                 Forms\Components\Select::make('kind')
                     ->options([
                         'main' => 'Main',

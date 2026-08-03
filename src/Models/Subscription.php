@@ -64,6 +64,18 @@ class Subscription extends Model
         static::addGlobalScope(new OwnsScope);
     }
 
+    /**
+     * Resolved grace-days for this subscription: its own override → the plan's default
+     * → the global config default. Grace retains access (and defers expiry) for this
+     * many days after the coverage end while a renewal is retried.
+     */
+    public function graceDays(): int
+    {
+        return (int) ($this->grace_days
+            ?? $this->subscriptionPlan?->grace_days
+            ?? config('billing.grace_days', 2));
+    }
+
     public function isAccessActive(): bool
     {
         if ($this->status !== 'active') {
@@ -77,7 +89,9 @@ class Subscription extends Model
             return false;
         }
 
-        return ! $coverageEnd || ! $coverageEnd->isPast();
+        // Grace-aware: coverage is still "active" until the grace window past the
+        // coverage end has also elapsed.
+        return ! $coverageEnd || ! $coverageEnd->copy()->addDays($this->graceDays())->isPast();
     }
 
     public function getIsAccessActiveAttribute(): bool

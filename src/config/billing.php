@@ -46,6 +46,11 @@ return [
     'subscriptions' => [
         'provider' => env('BILLING_SUBSCRIPTION_PROVIDER', 'paypal'),
     ],
+
+    // Default days of grace after a subscription's coverage end before it is expired.
+    // Per-subscription and per-plan `grace_days` columns override this.
+    'grace_days' => (int) env('BILLING_GRACE_DAYS', 2),
+
     'entitlements' => [
         'type_map' => [
             'exam' => env('BILLING_ENTITLEMENT_EXAM_MODEL'),

@@ -64,6 +64,13 @@ class SubscriptionResource extends Resource
                     ])
                     ->inline()
                     ->required(),
+                Forms\Components\TextInput::make('grace_days')
+                    ->numeric()
+                    ->nullable()
+                    ->minValue(0)
+                    ->maxValue(31)
+                    ->placeholder('Inherit from plan / default')
+                    ->helperText('Per-subscription grace override. Blank = plan or system default.'),
             ]);
     }
 
