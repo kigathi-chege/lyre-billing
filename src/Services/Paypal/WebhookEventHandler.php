@@ -5,6 +5,7 @@ namespace Lyre\Billing\Services\Paypal;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Lyre\Billing\Events\SubscriptionProviderCancelled;
 use Lyre\Billing\Models\Invoice;
 use Lyre\Billing\Models\PaymentMethod;
 use Lyre\Billing\Models\Transaction;
@@ -22,6 +23,7 @@ class WebhookEventHandler
             'PAYMENT.SALE.COMPLETED' => $this->paymentSaleCompleted($data),
             'BILLING.SUBSCRIPTION.ACTIVATED' => $this->billingSubscriptionActivated($data),
             'BILLING.SUBSCRIPTION.SUSPENDED' => $this->billingSubscriptionSuspended($data),
+            'BILLING.SUBSCRIPTION.CANCELLED' => $this->billingSubscriptionCancelled($data),
             'BILLING.SUBSCRIPTION.PAYMENT.FAILED' => $this->billingSubscriptionPaymentFailed($data),
             default => null,
         };
@@ -112,6 +114,29 @@ class WebhookEventHandler
 
         $this->recordWebhookTelemetry($data, $providerId);
         app(SubscriptionLifecycleService::class)->suspendByProviderId($providerId, 'paypal');
+    }
+
+    protected function billingSubscriptionCancelled(array $data): void
+    {
+        $providerId = data_get($data, 'resource.id');
+        if (! $providerId) {
+            return;
+        }
+
+        $subscription = PaypalModelBridge::findSubscriptionByProviderId($providerId);
+        $subscription->update([
+            'status' => 'canceled',
+            'auto_renew' => false,
+        ]);
+
+        $this->recordWebhookTelemetry($data, $providerId);
+
+        event(new SubscriptionProviderCancelled(
+            $subscription->fresh(),
+            'paypal',
+            'canceled',
+            $data
+        ));
     }
 
     protected function billingSubscriptionPaymentFailed(array $data): void

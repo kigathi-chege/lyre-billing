@@ -4,7 +4,6 @@ namespace Lyre\Billing\Repositories;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
-use Lyre\Exceptions\CommonException;
 use Lyre\Repository;
 use Lyre\Billing\Models\Subscription;
 use Lyre\Billing\Contracts\SubscriptionRepositoryInterface;
@@ -40,7 +39,7 @@ class SubscriptionRepository extends Repository implements SubscriptionRepositor
 
     public function revokeRenewal(string|int $subscription)
     {
-        $subscription = $this->resolveOwnedSubscription($subscription);
+        $subscription = $this->resolveManageableSubscription($subscription);
 
         if (! $subscription->auto_renew) {
             return $this->resource::make($subscription);
@@ -54,14 +53,14 @@ class SubscriptionRepository extends Repository implements SubscriptionRepositor
             throw new HttpException(422, 'This subscription can no longer be changed.');
         }
 
-        $subscription->update(['auto_renew' => false]);
+        $subscription = $this->lifecycleService->revokeRenewal($subscription);
 
-        return $this->resource::make($subscription->fresh());
+        return $this->resource::make($subscription);
     }
 
     public function restoreRenewal(string|int $subscription)
     {
-        $subscription = $this->resolveOwnedSubscription($subscription);
+        $subscription = $this->resolveManageableSubscription($subscription);
 
         if ($subscription->auto_renew) {
             return $this->resource::make($subscription);
@@ -71,12 +70,12 @@ class SubscriptionRepository extends Repository implements SubscriptionRepositor
             throw new HttpException(422, 'Only active subscriptions can restore renewal.');
         }
 
-        $subscription->update(['auto_renew' => true]);
+        $subscription = $this->lifecycleService->restoreRenewal($subscription);
 
-        return $this->resource::make($subscription->fresh());
+        return $this->resource::make($subscription);
     }
 
-    protected function resolveOwnedSubscription(string|int $subscription): Subscription
+    protected function resolveManageableSubscription(string|int $subscription): Subscription
     {
         $user = auth()->user();
 
@@ -89,8 +88,13 @@ class SubscriptionRepository extends Repository implements SubscriptionRepositor
         // "column slug does not exist"; guard it like Lyre's core find() does.
         $hasSlug = Schema::hasColumn($this->model->getTable(), 'slug');
 
-        $record = $this->model->query()
-            ->where('user_id', $user->getAuthIdentifier())
+        $query = $this->model->newQueryWithoutScopes();
+
+        if (! $this->isSuperAdmin($user)) {
+            $query->where('user_id', $user->getAuthIdentifier());
+        }
+
+        $record = $query
             ->where(function (Builder $query) use ($subscription, $hasSlug) {
                 if (is_numeric($subscription)) {
                     $query->orWhere('id', (int) $subscription);
@@ -103,9 +107,18 @@ class SubscriptionRepository extends Repository implements SubscriptionRepositor
             ->first();
 
         if (! $record) {
-            throw CommonException::fromMessage('Subscription not found for this user.');
+            throw new HttpException(404, 'Subscription not found.');
         }
 
         return $record;
+    }
+
+    protected function isSuperAdmin(mixed $user): bool
+    {
+        $role = (string) config('lyre.super-admin', 'super-admin');
+
+        return method_exists($user, 'hasRole')
+            ? $user->hasRole($role)
+            : strtolower((string) data_get($user, 'role')) === strtolower($role);
     }
 }

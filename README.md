@@ -13,7 +13,8 @@
   - `paystack` (scaffold with status-safe placeholders)
 - Additional billing routes:
   - `GET /api/subscriptionplans/{plan}/subscribe`
-  - `GET /api/subscriptions/{subscription}/approved`
+  - `PATCH|PUT /api/subscriptions/{subscription}/revoke-renewal`
+  - `PATCH|PUT /api/subscriptions/{subscription}/restore-renewal`
   - `POST /api/billing/webhook`
 - Filament resources via `LyreBillingFilamentPlugin`
 
@@ -28,6 +29,19 @@ The Stripe webhook endpoint (`POST /api/billing/webhook`) must have these events
 - `customer.subscription.resumed` — resume after pause.
 
 Note: since `invoice.paid` now advances `end_date` itself (forward-only), coverage no longer depends on `customer.subscription.updated` being delivered — but `.updated`/`.deleted` remain required for cancellations and plan changes.
+
+## Renewal management
+
+- The authenticated subscription owner can disable or restore renewal. The configured
+  Lyre super-admin role can perform the same action for any user's subscription.
+- Stripe-backed subscriptions set `cancel_at_period_end` at Stripe before the local
+  `auto_renew` value is changed. `customer.subscription.updated` and Stripe
+  reconciliation also repair the local value from Stripe.
+- Subscriptions without a provider reference retain local-only renewal state for
+  manual/legacy billing workflows.
+- PayPal does not expose reversible end-of-current-period cancellation. Renewal
+  changes for a PayPal-backed subscription therefore return HTTP 422 rather than
+  recording a local state that disagrees with PayPal.
 
 ## Install
 ```bash

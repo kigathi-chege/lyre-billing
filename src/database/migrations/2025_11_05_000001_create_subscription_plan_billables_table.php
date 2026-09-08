@@ -25,7 +25,7 @@ return new class extends Migration
                     ->cascadeOnDelete();
                 $table->integer('order')->default(0)->comment('Order of the billable in the subscription plan');
                 $table->timestamps();
-                $table->unique(['subscription_plan_id', 'billable_id']);
+                $table->unique(['subscription_plan_id', 'billable_id'], 'sub_plan_billables_plan_billable_unique');
             });
         }
     }
