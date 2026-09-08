@@ -64,7 +64,10 @@ class StripeReconciliationService
         $target = WebhookEventHandler::mapStripeStatus($stripeStatus, $fromStatus);
         $outcome['to'] = $target;
 
-        if ($target === $fromStatus) {
+        $providerAutoRenew = ! (bool) data_get($live, 'cancel_at_period_end', false);
+        $renewalChanged = (bool) $subscription->auto_renew !== $providerAutoRenew;
+
+        if ($target === $fromStatus && ! $renewalChanged) {
             $outcome['action'] = 'unchanged';
 
             return $outcome;
@@ -89,6 +92,7 @@ class StripeReconciliationService
         if (data_get($live, 'current_period_end')) {
             $subscription->end_date = now()->setTimestamp((int) data_get($live, 'current_period_end'));
         }
+        $subscription->auto_renew = $providerAutoRenew;
         $subscription->save();
 
         $lifecycle = app(SubscriptionLifecycleService::class);
@@ -101,7 +105,7 @@ class StripeReconciliationService
             default => null,
         };
 
-        $outcome['action'] = $target;
+        $outcome['action'] = $target === $fromStatus ? 'renewal_synced' : $target;
         $outcome['changed'] = true;
 
         Log::info('billing.stripe_reconcile.applied', [
@@ -165,6 +169,7 @@ class StripeReconciliationService
 
         $subscription->update([
             'status' => 'canceled',
+            'auto_renew' => false,
             'metadata' => $metadata,
         ]);
     }

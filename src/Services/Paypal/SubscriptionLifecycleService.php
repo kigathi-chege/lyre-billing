@@ -2,6 +2,7 @@
 
 namespace Lyre\Billing\Services\Paypal;
 
+use Illuminate\Database\Eloquent\Model;
 use Lyre\Billing\Events\SubscriptionActivated;
 use Lyre\Billing\Events\SubscriptionExpired;
 use Lyre\Billing\Events\SubscriptionPaymentFailed;
@@ -9,9 +10,20 @@ use Lyre\Billing\Events\SubscriptionRenewalDue;
 use Lyre\Billing\Events\SubscriptionSuspended;
 use Lyre\Billing\Support\BillingSupport;
 use Lyre\Jobs\SendEmails;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class SubscriptionLifecycleService
 {
+    public function revokeRenewal(Model $subscription): never
+    {
+        throw new HttpException(422, 'PayPal does not support reversible cancellation at the end of the current billing period.');
+    }
+
+    public function restoreRenewal(Model $subscription): never
+    {
+        throw new HttpException(422, 'A PayPal end-of-period cancellation cannot be restored.');
+    }
+
     public function approveByProviderId(string $providerId, mixed $invoice = null): mixed
     {
         $subscription = PaypalModelBridge::findSubscriptionByProviderId($providerId);

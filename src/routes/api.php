@@ -13,6 +13,8 @@ Route::prefix('api')
         ]);
 
         Route::get('/subscriptionplans/{plan}/subscribe/', [Controllers\SubscriptionPlanController::class, 'subscribe']);
+        Route::match(['put', 'patch'], '/subscriptions/{subscription}/revoke-renewal', [Controllers\SubscriptionController::class, 'revokeRenewal']);
+        Route::match(['put', 'patch'], '/subscriptions/{subscription}/restore-renewal', [Controllers\SubscriptionController::class, 'restoreRenewal']);
         Route::prefix('billing/subscriptions')->group(function () {
             Route::get('/provider-return', [Controllers\SubscriptionController::class, 'providerReturned']);
             Route::get('/provider-return-redirect', [Controllers\SubscriptionController::class, 'providerReturnRedirect']);

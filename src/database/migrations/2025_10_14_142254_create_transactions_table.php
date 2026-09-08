@@ -30,7 +30,7 @@ return new class extends Migration
 
                 $table->foreignId('invoice_id')->nullable()->constrained($prefix . 'invoices')->nullOnDelete();
                 $table->foreignId('user_id')->nullable()->constrained($userTable)->nullOnDelete();
-                $table->foreignId('payment_method_id')->constrained($prefix . 'payment_methods')->nullOnDelete();
+                $table->foreignId('payment_method_id')->nullable()->constrained($prefix . 'payment_methods')->nullOnDelete();
                 $table->string('order_reference')->nullable()->comment('Reference to Commerce Order for order payments');
 
                 $table->index(['uuid']);

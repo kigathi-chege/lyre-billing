@@ -2,6 +2,9 @@
 
 namespace Lyre\Billing\Services;
 
+use Illuminate\Database\Eloquent\Model;
+use Lyre\Billing\Support\BillingSupport;
+
 class SubscriptionLifecycleService
 {
     public function approveByProviderId(string $providerId, mixed $invoice = null, ?string $provider = null): mixed
@@ -21,12 +24,38 @@ class SubscriptionLifecycleService
 
     public function expire(mixed $subscription, ?string $provider = null): mixed
     {
-        return $this->resolver($provider)->expire($subscription);
+        return $this->resolver($provider ?: BillingSupport::subscriptionProvider($subscription))->expire($subscription);
     }
 
     public function markRenewalDue(mixed $subscription, ?string $provider = null): mixed
     {
-        return $this->resolver($provider)->markRenewalDue($subscription);
+        return $this->resolver($provider ?: BillingSupport::subscriptionProvider($subscription))->markRenewalDue($subscription);
+    }
+
+    public function revokeRenewal(Model $subscription): mixed
+    {
+        $provider = BillingSupport::subscriptionProvider($subscription);
+
+        if (! $provider) {
+            $subscription->update(['auto_renew' => false]);
+
+            return $subscription->fresh();
+        }
+
+        return $this->resolver($provider)->revokeRenewal($subscription);
+    }
+
+    public function restoreRenewal(Model $subscription): mixed
+    {
+        $provider = BillingSupport::subscriptionProvider($subscription);
+
+        if (! $provider) {
+            $subscription->update(['auto_renew' => true]);
+
+            return $subscription->fresh();
+        }
+
+        return $this->resolver($provider)->restoreRenewal($subscription);
     }
 
     protected function resolver(?string $provider): object

@@ -17,7 +17,9 @@ return new class extends Migration
         if (! Schema::hasTable($tableName)) {
             // A previous failed run may have left the default morph index name behind in Postgres.
             // Remove it before recreating the table with an explicit, stable index name.
-            DB::statement(sprintf('DROP INDEX IF EXISTS "%s"', $morphIndexName));
+            if (Schema::getConnection()->getDriverName() === 'pgsql') {
+                DB::statement(sprintf('DROP INDEX IF EXISTS "%s"', $morphIndexName));
+            }
 
             Schema::create($tableName, function (Blueprint $table) use ($tableName, $prefix, $explicitMorphIndexName) {
                 basic_fields($table, $tableName);

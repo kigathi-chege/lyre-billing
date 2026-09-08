@@ -182,21 +182,7 @@ class Subscription extends Model
 
     protected function resolveProviderKey(): ?string
     {
-        foreach (['paypal', 'stripe'] as $provider) {
-            $providerReference = BillingSupport::getProviderValue($this, $provider, 'subscription_id');
-
-            if ($providerReference) {
-                return $provider;
-            }
-        }
-
-        $providers = data_get($this->metadata, 'providers');
-        if (is_array($providers)) {
-            $firstProvider = array_key_first($providers);
-            return is_string($firstProvider) ? $firstProvider : null;
-        }
-
-        return null;
+        return BillingSupport::subscriptionProvider($this);
     }
 
     protected function resolveCoverageStartDate(): ?CarbonInterface

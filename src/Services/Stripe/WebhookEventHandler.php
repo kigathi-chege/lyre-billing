@@ -58,7 +58,7 @@ class WebhookEventHandler
             'checkout.session.expired' => $this->checkoutSessionExpired($object),
             'customer.subscription.created',
             'customer.subscription.updated' => $this->subscriptionUpserted($object),
-            'customer.subscription.deleted',
+            'customer.subscription.deleted' => $this->subscriptionDeleted($object),
             'customer.subscription.paused' => $this->subscriptionSuspended($object),
             'customer.subscription.resumed' => $this->subscriptionResumed($object),
             'customer.subscription.trial_will_end' => $this->subscriptionTrialWillEnd($object),
@@ -369,6 +369,10 @@ class WebhookEventHandler
         );
 
         $subscription->status = $normalized;
+        $cancelAtPeriodEnd = data_get($stripeSubscription, 'cancel_at_period_end');
+        if ($cancelAtPeriodEnd !== null) {
+            $subscription->auto_renew = ! (bool) $cancelAtPeriodEnd;
+        }
         if (data_get($stripeSubscription, 'current_period_end')) {
             $subscription->end_date = now()->setTimestamp((int) data_get($stripeSubscription, 'current_period_end'));
         }
@@ -504,13 +508,13 @@ class WebhookEventHandler
                 $subscription,
                 $providerId,
                 [
-                    'status' => 'cancelled',
+                    'status' => 'failed',
                     'raw_callback' => json_encode($stripeSubscription),
                     'metadata' => [
                         'provider' => 'stripe',
                         'provider_subscription_id' => $providerId,
-                        'subscription_cancelled_at' => now()->toIso8601String(),
-                        'webhook_event_type' => 'customer.subscription.deleted',
+                        'subscription_paused_at' => now()->toIso8601String(),
+                        'webhook_event_type' => 'customer.subscription.paused',
                     ],
                 ],
                 $invoice
@@ -518,6 +522,50 @@ class WebhookEventHandler
         }
 
         app(SubscriptionLifecycleService::class)->suspendByProviderId($providerId, 'stripe');
+    }
+
+    protected function subscriptionDeleted($stripeSubscription): void
+    {
+        $providerId = (string) data_get($stripeSubscription, 'id', '');
+        if ($providerId === '') {
+            return;
+        }
+
+        $subscription = StripeModelBridge::findByStripeSubscriptionId($providerId);
+        if (! $subscription) {
+            return;
+        }
+
+        $subscription->status = 'canceled';
+        $subscription->auto_renew = false;
+        if (data_get($stripeSubscription, 'current_period_end')) {
+            $subscription->end_date = now()->setTimestamp((int) data_get($stripeSubscription, 'current_period_end'));
+        }
+        $subscription->save();
+
+        $invoice = $this->syncLocalInvoiceFromSubscriptionPayload($stripeSubscription);
+        $this->upsertTransactionTelemetry(
+            $subscription,
+            $providerId,
+            [
+                'status' => 'cancelled',
+                'raw_callback' => json_encode($stripeSubscription),
+                'metadata' => [
+                    'provider' => 'stripe',
+                    'provider_subscription_id' => $providerId,
+                    'subscription_cancelled_at' => now()->toIso8601String(),
+                    'webhook_event_type' => 'customer.subscription.deleted',
+                ],
+            ],
+            $invoice
+        );
+
+        event(new SubscriptionProviderCancelled(
+            $subscription->fresh(),
+            'stripe',
+            'canceled',
+            is_array($stripeSubscription) ? $stripeSubscription : json_decode(json_encode($stripeSubscription), true) ?? []
+        ));
     }
 
     protected function invoiceCreated($invoiceObject): void

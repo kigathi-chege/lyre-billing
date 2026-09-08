@@ -77,6 +77,42 @@ class BillingSupport
         self::setMetadata($model, 'providers', $providerValues);
     }
 
+    public static function subscriptionProvider(Model $subscription): ?string
+    {
+        $metadata = self::metadata($subscription);
+        $providers = data_get($metadata, 'providers');
+        if (! is_array($providers)) {
+            return data_get($metadata, 'paypal_subscription_id') ? 'paypal' : null;
+        }
+
+        $resolvedProvider = null;
+        $latestSelection = null;
+
+        foreach ($providers as $provider => $values) {
+            if (! is_string($provider) || ! data_get($values, 'subscription_id')) {
+                continue;
+            }
+
+            $selectedAt = (string) data_get($values, 'selected_at', '');
+            if ($resolvedProvider === null || ($selectedAt !== '' && $selectedAt > $latestSelection)) {
+                $resolvedProvider = strtolower($provider);
+                $latestSelection = $selectedAt;
+            }
+        }
+
+        if ($resolvedProvider) {
+            return $resolvedProvider;
+        }
+
+        if (data_get($metadata, 'paypal_subscription_id')) {
+            return 'paypal';
+        }
+
+        $provider = array_key_first($providers);
+
+        return is_string($provider) ? strtolower($provider) : null;
+    }
+
     public static function planDisplayName(Model $plan): string
     {
         return (string) (
