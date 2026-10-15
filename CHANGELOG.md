@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.1
+
+- Defer early subscription/invoice events while checkout has not yet persisted its provider subscription reference, with bounded attempts and an explicit waiting reason.
+- Restrict customer fallback for subscription events to pending checkouts and reject mismatched provider subscription references.
+
 ## 2.7.0
 
 - Add opt-in durable Stripe webhook intake, processing leases, bounded retries and explicit outcomes.

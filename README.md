@@ -77,7 +77,7 @@ $panel->plugins([
 - Provider-specific payloads and callback interpretation belong in gateway adapters, not in app controllers.
 
 
-## 2.7.0: observable Stripe billing
+## 2.7: observable Stripe billing
 
 The opt-in `billing.observability.enabled` path shares authoritative provider normalization between webhook processing and reconciliation. It records verified event envelopes, bounded processing attempts, provider invoice/payment identities, reconciliation runs and before/after state changes. New evidence models follow `Lyre\Model` and its configured table-prefix/activity infrastructure.
 
@@ -94,3 +94,5 @@ The optional `BILLING_TEST_EXPIRY_ENABLED` helper only applies on allowed non-pr
 Configure invoice/payment failure and action-required events, subscription trial/update notices, checkout expiration, refund and dispute events in addition to the normal checkout/subscription/invoice events above. Unsupported events receive an explicit ignored outcome. Notification-only supported events have durable, deduplicated state-change notices even when financial facts are unchanged.
 
 The feature flag defaults off for existing consumers. Existing public routes remain unchanged. The Aspire consumer integration tests cover signature/deduplication, modern provider reads, monthly invoice separation, projection repair, bounded recovery/history verification, refund review, access/grace and UAT expiry safety. Validate consuming application's existing billing paths before enabling the new processor.
+
+Early verified webhook events can wait for checkout to persist its subscription reference. These attempts are recorded as `deferred` with `awaiting_checkout_subscription_reference`, retried within the existing five-attempt budget, and escalated for review only if the dependency remains unresolved.

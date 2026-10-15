@@ -112,12 +112,16 @@ class ProcessBillingEvent implements ShouldBeUnique, ShouldQueue
                     $subscription = $class::withoutGlobalScopes()->find($payment->subscription_id);
                 }
             }
-            if (! $subscription && ! str_starts_with($type, 'customer.subscription.')) {
+            if (! $subscription) {
                 // Modern invoice and payment events may omit subscription metadata.
                 $customer = ProviderData::id($object['customer'] ?? null);
                 if ($customer) {
                     $class = config('billing.models.subscription');
-                    $matches = $class::withoutGlobalScopes()->where('metadata->providers->stripe->customer_id', $customer)->get();
+                    $query = $class::withoutGlobalScopes()->where('metadata->providers->stripe->customer_id', $customer);
+                    if (str_starts_with($type, 'customer.subscription.')) {
+                        $query->where('status', 'pending')->whereNull('metadata->providers->stripe->subscription_id')->whereNotNull('metadata->providers->stripe->checkout_session_id');
+                    }
+                    $matches = $query->get();
                     if ($matches->count() === 1) {
                         $subscription = $matches->first();
                     }
@@ -126,7 +130,24 @@ class ProcessBillingEvent implements ShouldBeUnique, ShouldQueue
             if (! $subscription) {
                 throw new \RuntimeException('Verified event could not be mapped to a local subscription; review required.');
             }
+            $subscription->refresh();
+            if ($providerId && StripeModelBridge::getSubscriptionId($subscription) && $providerId !== StripeModelBridge::getSubscriptionId($subscription)) {
+                throw new \RuntimeException('Event subscription reference does not match the local subscription; review required.');
+            }
             $event->update(['subscription_id' => $subscription->id]);
+            if (! StripeModelBridge::getSubscriptionId($subscription)
+                && $subscription->status === 'pending'
+                && data_get($subscription->metadata, 'providers.stripe.checkout_session_id')) {
+                $count = BillingEventAttempt::where('event_id', $event->id)->where('generation', $event->generation)->count();
+                if ($count >= 5) {
+                    throw new \RuntimeException('Checkout subscription reference is still unavailable after bounded retries; review required.');
+                }
+                $attempt->update(['status' => 'deferred', 'finished_at' => now()]);
+                BillingProviderEvent::whereKey($event->id)->where('lease_token', $token)->update(['status' => 'retrying', 'reason' => 'awaiting_checkout_subscription_reference', 'lease_token' => null, 'lease_until' => now()->addSeconds(30)]);
+                Log::info('billing.event.deferred', ['event_id' => $event->provider_event_id, 'subscription_id' => $subscription->id, 'correlation_id' => $event->correlation_id, 'reason' => 'awaiting_checkout_subscription_reference']);
+
+                return;
+            }
             $sync->synchronize($subscription, false, 'webhook', $event->correlation_id, $event->account, null, null, $event->livemode, str_starts_with($type, 'invoice.') ? [ProviderData::id($object)] : $forceInvoiceIds, $type);
             $this->finish($event, $attempt, $token, 'applied', null);
         } catch (\Throwable $error) {
