@@ -23,6 +23,15 @@ class StripeReconciliationService
      */
     public function reconcile(Model $subscription, array $opts = []): array
     {
+        if (config('billing.observability.enabled')) {
+            try {
+                return app(BillingSynchronizer::class)->synchronize($subscription, (bool) ($opts['dry_run'] ?? true), 'reconciliation', $opts['correlation_id'] ?? '', data_get($subscription->metadata, 'providers.stripe.account', 'platform'), $opts['actor_id'] ?? null);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return ['subscription_id' => $subscription->id, 'stripe_id' => StripeModelBridge::getSubscriptionId($subscription), 'stripe_status' => null, 'from' => $subscription->status, 'to' => null, 'action' => 'unverifiable', 'changed' => false, 'dry_run' => (bool) ($opts['dry_run'] ?? true), 'error' => get_class($e)];
+            }
+        }
         $dryRun = (bool) ($opts['dry_run'] ?? false);
         $fromStatus = (string) $subscription->status;
 
@@ -74,7 +83,7 @@ class StripeReconciliationService
         }
 
         if ($dryRun) {
-            $outcome['action'] = 'would_' . $target;
+            $outcome['action'] = 'would_'.$target;
 
             return $outcome;
         }

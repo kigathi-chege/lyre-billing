@@ -3,8 +3,9 @@
 namespace Lyre\Billing\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Lyre\Model;
 use Lyre\Billing\Support\BillingSupport;
+use Lyre\Commerce\Models\Order;
+use Lyre\Model;
 use Lyre\Scopes\OwnsScope;
 
 class Transaction extends Model
@@ -14,7 +15,7 @@ class Transaction extends Model
      * so Lyre's get_status_code validates against this list instead of throwing
      * "Status config not found" when the status filter is applied.
      */
-    const STATUSES = ['pending', 'completed', 'failed', 'cancelled'];
+    const STATUSES = ['pending', 'completed', 'failed', 'cancelled', 'refunded', 'partially_refunded', 'disputed', 'action_required', 'superseded'];
 
     public static function booted()
     {
@@ -44,9 +45,10 @@ class Transaction extends Model
 
     public function order()
     {
-        if (class_exists(\Lyre\Commerce\Models\Order::class)) {
-            return $this->belongsTo(\Lyre\Commerce\Models\Order::class, 'order_reference', 'reference');
+        if (class_exists(Order::class)) {
+            return $this->belongsTo(Order::class, 'order_reference', 'reference');
         }
+
         return null;
     }
 }

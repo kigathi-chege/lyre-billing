@@ -4,18 +4,21 @@ namespace Lyre\Billing\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
+use Illuminate\Support\Facades\Log;
 
 class WebhookController extends BaseController
 {
     public function __invoke(Request $request)
     {
-        \Illuminate\Support\Facades\Log::info("WEBHOOK", [$request->all()]);
+        Log::info('billing.webhook.request_received', ['has_stripe_signature' => $request->hasHeader('Stripe-Signature')]);
 
         $provider = strtolower((string) ($request->query('provider') ?: $this->resolveProvider($request)));
         $handlerClass = config("billing.providers.{$provider}.webhook_handler");
 
         if ($handlerClass && class_exists($handlerClass)) {
             app($handlerClass)->handle($request);
+        } else {
+            throw new \RuntimeException('Billing webhook handler is not configured.');
         }
 
         return true;

@@ -91,7 +91,7 @@ class StripeModelBridge
     {
         $subscriptionClass = config('billing.models.subscription');
 
-        return $subscriptionClass::query()
+        return $subscriptionClass::withoutGlobalScopes()
             ->where('metadata->providers->stripe->subscription_id', $subscriptionId)
             ->first();
     }
@@ -100,7 +100,7 @@ class StripeModelBridge
     {
         $subscriptionClass = config('billing.models.subscription');
 
-        return $subscriptionClass::query()
+        return $subscriptionClass::withoutGlobalScopes()
             ->where('metadata->providers->stripe->checkout_session_id', $sessionId)
             ->first();
     }
