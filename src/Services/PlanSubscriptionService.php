@@ -4,6 +4,7 @@ namespace Lyre\Billing\Services;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Lyre\Billing\Events\SubscriptionProcessStarted;
 use Lyre\Billing\Models\Invoice;
@@ -30,6 +31,10 @@ class PlanSubscriptionService
             'billing_cycle' => $plan->getAttribute('billing_cycle'),
             'price' => $plan->getAttribute('price'),
         ]);
+
+        // Validate the customer's picks before any subscription, invoice or provider checkout
+        // exists, so an invalid selection never leaves a payable checkout behind.
+        $requestedEntitlements = $this->resolveRequestedEntitlements($plan);
 
         $subscriptionClass = method_exists($plan, 'subscriptions')
             ? get_class($plan->subscriptions()->getModel())
@@ -62,7 +67,7 @@ class PlanSubscriptionService
             throw CommonException::fromMessage('You are already subscribed to this plan.');
         }
 
-        /** @var \Illuminate\Database\Eloquent\Model $subscription */
+        /** @var Model $subscription */
         $subscription = $subscriptionClass::firstOrCreate(
             [
                 'user_id' => $user->getAuthIdentifier(),
@@ -116,7 +121,7 @@ class PlanSubscriptionService
             $invoice->fresh(),
             $provider
         ));
-        $this->syncCompatibilityEntitlements($plan, $subscription);
+        $this->syncCompatibilityEntitlements($plan, $subscription, $requestedEntitlements);
         Log::info('billing.plan_subscription.entitlements_synced', [
             'subscription_id' => $subscription->getKey(),
             'provider' => $provider,
@@ -139,7 +144,7 @@ class PlanSubscriptionService
         ];
 
         $subscriptionClass = config('billing.models.subscription');
-        $prototype = new $subscriptionClass();
+        $prototype = new $subscriptionClass;
 
         foreach (['name', 'email'] as $field) {
             if (BillingSupport::hasColumn($prototype, $field) && data_get($user, $field)) {
@@ -208,7 +213,7 @@ class PlanSubscriptionService
                 'provider' => data_get($subscription, 'metadata.providers')
                     ? array_key_first((array) data_get($subscription, 'metadata.providers'))
                     : null,
-                ],
+            ],
         ]);
 
         $this->ensureInvoiceNumber($invoice);
@@ -229,7 +234,7 @@ class PlanSubscriptionService
             return;
         }
 
-        $invoice->invoice_number = 'INV-' . now()->format('Ym') . '-' . str_pad((string) $invoice->id, 6, '0', STR_PAD_LEFT);
+        $invoice->invoice_number = 'INV-'.now()->format('Ym').'-'.str_pad((string) $invoice->id, 6, '0', STR_PAD_LEFT);
         $invoice->saveQuietly();
 
         Log::info('billing.plan_subscription.invoice_number_backfilled', [
@@ -238,9 +243,22 @@ class PlanSubscriptionService
         ]);
     }
 
-    protected function syncCompatibilityEntitlements(Model $plan, Model $subscription): void
+    /**
+     * Entitlement sources written from the plan at checkout. A pending subscription is reused
+     * across checkout attempts, so these are replaced (never accumulated) on each attempt.
+     */
+    public const PLAN_ENTITLEMENT_SOURCES = ['plan_fixed', 'plan_quota', 'plan_quota_all', 'plan_primary_entitlement', 'plan'];
+
+    protected function syncCompatibilityEntitlements(Model $plan, Model $subscription, ?Collection $requestedEntitlements = null): void
     {
-        $requestedEntitlements = $this->resolveRequestedEntitlements($plan);
+        $requestedEntitlements ??= $this->resolveRequestedEntitlements($plan);
+
+        if ($subscription->getAttribute('status') === 'pending') {
+            SubscriptionEntitlement::query()
+                ->where('subscription_id', $subscription->getKey())
+                ->whereIn('source', self::PLAN_ENTITLEMENT_SOURCES)
+                ->delete();
+        }
         if ($requestedEntitlements->isNotEmpty()) {
             foreach ($requestedEntitlements as $entitlement) {
                 SubscriptionEntitlement::firstOrCreate([
@@ -330,16 +348,19 @@ class PlanSubscriptionService
         }
 
         if ($kind === 'main' && $mode === 'quota') {
-            foreach ($this->resolveRequestedSelections() as $typeToken => $ids) {
+            foreach ($this->resolveRequestedSelections() as $typeToken => $keys) {
+                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
+                if (! $modelClass || ! class_exists($modelClass)) {
+                    throw CommonException::fromMessage("This plan does not offer {$typeToken} selections.", 422);
+                }
+
+                // A type the plan does not configure has no slots: missing never means unlimited.
                 $limit = data_get($config, "quota.{$typeToken}_slots");
-                if ($limit !== 'all' && $limit !== null && count($ids) > (int) $limit) {
+                if ($limit !== 'all' && count($keys) > (int) $limit) {
                     throw CommonException::fromMessage("Too many {$typeToken} selections for this plan.", 422);
                 }
 
-                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
-                if (! $modelClass || ! class_exists($modelClass)) {
-                    continue;
-                }
+                $ids = $this->resolveSelectionIds($modelClass, $keys, $typeToken);
 
                 foreach ($ids as $id) {
                     $entitlements->push([
@@ -379,6 +400,37 @@ class PlanSubscriptionService
         return $entitlements->unique(fn ($item) => $item['type'].'-'.$item['id'])->values();
     }
 
+    /**
+     * Resolve selection keys (numeric ids or slugs) to existing record ids; every key must match.
+     *
+     * @param  list<string>  $keys
+     * @return list<int>
+     */
+    protected function resolveSelectionIds(string $modelClass, array $keys, string $typeToken): array
+    {
+        $model = new $modelClass;
+        $numeric = array_values(array_filter($keys, fn ($key) => ctype_digit($key)));
+        $slugs = array_values(array_diff($keys, $numeric));
+
+        $records = $modelClass::query()->where(function ($builder) use ($numeric, $slugs, $model) {
+            if ($numeric !== []) {
+                $builder->orWhereIn($model->getQualifiedKeyName(), array_map('intval', $numeric));
+            }
+            if ($slugs !== []) {
+                $builder->orWhereIn($model->qualifyColumn('slug'), $slugs);
+            }
+        })->get();
+
+        $matched = $records->flatMap(fn ($record) => [(string) $record->getKey(), (string) $record->getAttribute('slug')])->all();
+        $unknown = array_values(array_diff($keys, $matched));
+
+        if ($unknown !== []) {
+            throw CommonException::fromMessage("Unknown {$typeToken} selection: ".implode(', ', $unknown), 422);
+        }
+
+        return $records->map(fn ($record) => (int) $record->getKey())->unique()->values()->all();
+    }
+
     protected function resolveRequestedSelections(): array
     {
         $selectionPayload = request()->query('selection', request()->input('selection', []));
@@ -390,8 +442,9 @@ class PlanSubscriptionService
 
         foreach ($selectionPayload as $typeToken => $ids) {
             $normalizedIds = collect(is_array($ids) ? $ids : explode(',', (string) $ids))
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn ($id) => $id > 0)
+                ->map(fn ($id) => trim((string) $id))
+                ->filter(fn ($id) => $id !== '' && $id !== '0')
+                ->unique()
                 ->values()
                 ->all();
 
