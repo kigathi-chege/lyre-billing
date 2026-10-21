@@ -8,7 +8,8 @@
       "src/utils/helpers.php"
     ],
     "psr-4": {
-      "Lyre\\Billing\\": "src/"
+      "Lyre\\Billing\\": "src/",
+      "Lyre\\Billing\\Database\\Seeders\\": "src/database/seeders/"
     }
   },
   "authors": [

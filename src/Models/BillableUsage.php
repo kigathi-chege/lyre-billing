@@ -3,14 +3,15 @@
 namespace Lyre\Billing\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Lyre\Model;
 use Lyre\Billing\Support\BillingSupport;
+use Lyre\Model;
 
 class BillableUsage extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'slug',
         'billable_item_id',
         'subscription_id',
         'user_id',

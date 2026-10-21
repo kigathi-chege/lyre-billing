@@ -8,6 +8,7 @@ use Lyre\Billing\Services\Paypal\PlanSubscriptionService;
 use Lyre\Billing\Services\Paypal\SubscriptionLifecycleService;
 use Lyre\Billing\Services\Paypal\WebhookEventHandler;
 use Lyre\Billing\Services\Stripe\ObservableWebhookHandler;
+use Lyre\Billing\Services\Stripe\StripeOverageBiller;
 
 return [
     'testing' => ['expiry_enabled' => env('BILLING_TEST_EXPIRY_ENABLED', false)],
@@ -68,6 +69,30 @@ return [
             'exam' => env('BILLING_ENTITLEMENT_EXAM_MODEL'),
             'assessment' => env('BILLING_ENTITLEMENT_ASSESSMENT_MODEL'),
             'course' => env('BILLING_ENTITLEMENT_COURSE_MODEL'),
+        ],
+
+        // Capabilities a content billable item grants when it does not list its own, per
+        // type-map token, e.g. ['exam' => ['assessments.sit', 'questions.practice']].
+        'default_capabilities' => [],
+
+        // Capability keys a content item can grant, with admin labels. The host app defines them.
+        'capabilities' => [],
+
+        // Write entitlement rows for every record of an unlimited "any" item at checkout, for
+        // access checks that read rows. Disable once access resolves the live rule.
+        'expand_unlimited' => env('BILLING_EXPAND_UNLIMITED_ENTITLEMENTS', true),
+    ],
+
+    'allowances' => [
+        // What happens when a metered allowance runs out, unless the item or plan link sets
+        // metadata.on_exhaustion: 'upsell' (deny and offer an upgrade) or 'overage' (charge).
+        'on_exhaustion' => env('BILLING_ALLOWANCE_ON_EXHAUSTION', 'upsell'),
+
+        // Known meter keys with admin labels, e.g. ['exam_attempts' => 'Exam attempts'].
+        'meters' => [],
+
+        'overage_billers' => [
+            'stripe' => StripeOverageBiller::class,
         ],
     ],
 ];

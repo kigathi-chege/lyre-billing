@@ -3,14 +3,15 @@
 namespace Lyre\Billing\Models;
 
 use Carbon\CarbonInterface;
-use Lyre\Scopes\OwnsScope;
-// use App\Services\Paypal\Subscription as PaypalSubscription;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+// use App\Services\Paypal\Subscription as PaypalSubscription;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
-use Lyre\Model;
 use Lyre\Billing\Support\BillingSupport;
+use Lyre\Billing\Support\PlanComposition;
+use Lyre\Model;
+use Lyre\Scopes\OwnsScope;
 
 class Subscription extends Model
 {
@@ -92,6 +93,45 @@ class Subscription extends Model
         // Grace-aware: coverage is still "active" until the grace window past the
         // coverage end has also elapsed.
         return ! $coverageEnd || ! $coverageEnd->copy()->addDays($this->graceDays())->isPast();
+    }
+
+    /**
+     * What this subscription grants: the snapshot captured when it was bought, or the plan's
+     * current composition for subscriptions that predate snapshots.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function accessComponents(): array
+    {
+        $snapshot = data_get($this->metadata, 'access_snapshot');
+
+        if (is_array($snapshot) && is_array($snapshot['components'] ?? null)) {
+            return $snapshot['components'];
+        }
+
+        return $this->subscriptionPlan
+            ? app(PlanComposition::class)->components($this->subscriptionPlan)
+            : [];
+    }
+
+    /**
+     * Record the plan's current composition on the subscription. Existing snapshots are kept
+     * (grandfathering) unless $force re-syncs the subscription to the plan as it is now.
+     */
+    public function captureAccessSnapshot(bool $force = false): void
+    {
+        if (! $force && is_array(data_get($this->metadata, 'access_snapshot'))) {
+            return;
+        }
+
+        if (! $this->subscriptionPlan) {
+            return;
+        }
+
+        $metadata = (array) ($this->metadata ?? []);
+        $metadata['access_snapshot'] = app(PlanComposition::class)->snapshot($this->subscriptionPlan);
+        $this->metadata = $metadata;
+        $this->saveQuietly();
     }
 
     public function getIsAccessActiveAttribute(): bool
