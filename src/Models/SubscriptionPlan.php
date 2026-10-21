@@ -3,6 +3,8 @@
 namespace Lyre\Billing\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Lyre\Billing\Support\PlanBenefits;
+use Lyre\Billing\Support\PlanComposition;
 use Lyre\Facet\Concerns\HasFacet;
 use Lyre\Model;
 
@@ -21,7 +23,42 @@ class SubscriptionPlan extends Model
         'entitlements_config',
         'plan_summary',
         'billable_summary',
+        'benefits',
+        'selectable',
     ];
+
+    /** @var list<array<string, mixed>>|null */
+    protected ?array $compositionCache = null;
+
+    /**
+     * What the plan sells, from its bundles (memoised per instance).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function composition(): array
+    {
+        return $this->compositionCache ??= app(PlanComposition::class)->components($this);
+    }
+
+    /**
+     * Customer-facing benefits generated from the composition.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getBenefitsAttribute(): array
+    {
+        return app(PlanBenefits::class)->fromComponents($this->composition());
+    }
+
+    /**
+     * What the customer chooses at checkout: type token => number of picks.
+     *
+     * @return array<string, int>
+     */
+    public function getSelectableAttribute(): array
+    {
+        return app(PlanComposition::class)->selectablePicks($this->composition());
+    }
 
     protected $casts = [
         'features' => 'array',
