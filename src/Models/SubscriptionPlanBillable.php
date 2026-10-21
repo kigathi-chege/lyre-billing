@@ -15,12 +15,14 @@ class SubscriptionPlanBillable extends Model
         'usage_limit',
         'unit_price',
         'order',
+        'metadata',
     ];
 
     protected $casts = [
         'usage_limit' => 'integer',
         'unit_price' => 'decimal:2',
         'order' => 'integer',
+        'metadata' => 'array',
     ];
 
     /**
@@ -30,7 +32,7 @@ class SubscriptionPlanBillable extends Model
      */
     public function getTable()
     {
-        return config('lyre.table_prefix') . 'subscription_plan_billables';
+        return config('lyre.table_prefix').'subscription_plan_billables';
     }
 
     public function subscriptionPlan()

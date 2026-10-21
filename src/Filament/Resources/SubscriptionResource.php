@@ -2,17 +2,17 @@
 
 namespace Lyre\Billing\Filament\Resources;
 
-use Lyre\Billing\Filament\Resources\SubscriptionResource\Pages;
-use Lyre\Billing\Filament\Resources\SubscriptionResource\RelationManagers;
-use Lyre\Billing\Models\Subscription;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Support\Facades\Auth;
+use Lyre\Billing\Filament\Resources\SubscriptionResource\Pages;
+use Lyre\Billing\Models\Subscription;
 use UnitEnum;
 
 class SubscriptionResource extends Resource
@@ -21,7 +21,7 @@ class SubscriptionResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-subscriptions';
 
-    public static function getNavigationGroup(): string | UnitEnum | null
+    public static function getNavigationGroup(): string|UnitEnum|null
     {
         return 'Subscriptions';
     }
@@ -78,6 +78,15 @@ class SubscriptionResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('access_summary')
+                    ->label('Grants')
+                    ->getStateUsing(fn (Subscription $record) => collect($record->accessComponents())
+                        ->map(fn (array $component) => $component['kind'] === 'meter'
+                            ? ($component['name'] ?? $component['meter']).': '.($component['usage_limit'] ?? '∞')
+                            : ($component['name'] ?? ($component['type'] ?? 'item').($component['id'] ? ' #'.$component['id'] : ' (any)')))
+                        ->implode(', '))
+                    ->wrap()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -94,7 +103,7 @@ class SubscriptionResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'pending' => 'warning',
                         'active' => 'success',
                         'paused' => 'warning',
@@ -114,11 +123,18 @@ class SubscriptionResource extends Resource
                 //
             ])
             ->recordActions([
-                \Filament\Actions\EditAction::make(),
+                EditAction::make(),
+                Action::make('resyncAccess')
+                    ->label('Re-sync access')
+                    ->icon('gmdi-sync')
+                    ->requiresConfirmation()
+                    ->modalDescription('Replace what this subscription grants with the plan as it is configured now. Subscribers otherwise keep what they bought.')
+                    ->action(fn (Subscription $record) => $record->captureAccessSnapshot(force: true))
+                    ->successNotificationTitle('Access re-synced to the current plan'),
             ])
             ->toolbarActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()

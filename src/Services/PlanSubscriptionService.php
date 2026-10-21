@@ -4,11 +4,14 @@ namespace Lyre\Billing\Services;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Lyre\Billing\Events\SubscriptionProcessStarted;
+use Lyre\Billing\Models\BillableItem;
 use Lyre\Billing\Models\Invoice;
 use Lyre\Billing\Models\SubscriptionEntitlement;
 use Lyre\Billing\Support\BillingSupport;
+use Lyre\Billing\Support\PlanComposition;
 use Lyre\Exceptions\CommonException;
 
 class PlanSubscriptionService
@@ -30,6 +33,10 @@ class PlanSubscriptionService
             'billing_cycle' => $plan->getAttribute('billing_cycle'),
             'price' => $plan->getAttribute('price'),
         ]);
+
+        // Validate the customer's picks before any subscription, invoice or provider checkout
+        // exists, so an invalid selection never leaves a payable checkout behind.
+        $requestedEntitlements = $this->resolveRequestedEntitlements($plan);
 
         $subscriptionClass = method_exists($plan, 'subscriptions')
             ? get_class($plan->subscriptions()->getModel())
@@ -62,7 +69,7 @@ class PlanSubscriptionService
             throw CommonException::fromMessage('You are already subscribed to this plan.');
         }
 
-        /** @var \Illuminate\Database\Eloquent\Model $subscription */
+        /** @var Model $subscription */
         $subscription = $subscriptionClass::firstOrCreate(
             [
                 'user_id' => $user->getAuthIdentifier(),
@@ -79,6 +86,11 @@ class PlanSubscriptionService
             'start_date' => optional($subscription->getAttribute('start_date'))?->toIso8601String(),
             'end_date' => optional($subscription->getAttribute('end_date'))?->toIso8601String(),
         ]);
+
+        // Record what is being bought; renewals keep it so later plan edits do not change it.
+        $metadata = (array) ($subscription->getAttribute('metadata') ?? []);
+        $metadata['access_snapshot'] = app(PlanComposition::class)->snapshot($plan);
+        $subscription->setAttribute('metadata', $metadata);
 
         BillingSupport::hydrateSubscriptionProfile($subscription, $user);
         BillingSupport::setProviderValue($subscription, $provider, 'selected_at', now()->toIso8601String());
@@ -116,7 +128,7 @@ class PlanSubscriptionService
             $invoice->fresh(),
             $provider
         ));
-        $this->syncCompatibilityEntitlements($plan, $subscription);
+        $this->syncCompatibilityEntitlements($plan, $subscription, $requestedEntitlements);
         Log::info('billing.plan_subscription.entitlements_synced', [
             'subscription_id' => $subscription->getKey(),
             'provider' => $provider,
@@ -139,7 +151,7 @@ class PlanSubscriptionService
         ];
 
         $subscriptionClass = config('billing.models.subscription');
-        $prototype = new $subscriptionClass();
+        $prototype = new $subscriptionClass;
 
         foreach (['name', 'email'] as $field) {
             if (BillingSupport::hasColumn($prototype, $field) && data_get($user, $field)) {
@@ -208,7 +220,7 @@ class PlanSubscriptionService
                 'provider' => data_get($subscription, 'metadata.providers')
                     ? array_key_first((array) data_get($subscription, 'metadata.providers'))
                     : null,
-                ],
+            ],
         ]);
 
         $this->ensureInvoiceNumber($invoice);
@@ -229,7 +241,7 @@ class PlanSubscriptionService
             return;
         }
 
-        $invoice->invoice_number = 'INV-' . now()->format('Ym') . '-' . str_pad((string) $invoice->id, 6, '0', STR_PAD_LEFT);
+        $invoice->invoice_number = 'INV-'.now()->format('Ym').'-'.str_pad((string) $invoice->id, 6, '0', STR_PAD_LEFT);
         $invoice->saveQuietly();
 
         Log::info('billing.plan_subscription.invoice_number_backfilled', [
@@ -238,145 +250,125 @@ class PlanSubscriptionService
         ]);
     }
 
-    protected function syncCompatibilityEntitlements(Model $plan, Model $subscription): void
+    /**
+     * Entitlement sources written from the plan at checkout. A pending subscription is reused
+     * across checkout attempts, so these are replaced (never accumulated) on each attempt.
+     */
+    public const PLAN_ENTITLEMENT_SOURCES = ['plan_fixed', 'plan_quota', 'plan_quota_all', 'plan_primary_entitlement', 'plan'];
+
+    /**
+     * Write the plan's entitlement rows for a checkout. Rows on a pending subscription confer
+     * nothing (access requires an active subscription); they record what is being bought.
+     */
+    protected function syncCompatibilityEntitlements(Model $plan, Model $subscription, ?Collection $requestedEntitlements = null): void
     {
-        $requestedEntitlements = $this->resolveRequestedEntitlements($plan);
-        if ($requestedEntitlements->isNotEmpty()) {
-            foreach ($requestedEntitlements as $entitlement) {
-                SubscriptionEntitlement::firstOrCreate([
-                    'subscription_id' => $subscription->getKey(),
-                    'entitlable_type' => $entitlement['type'],
-                    'entitlable_id' => $entitlement['id'],
-                ], [
-                    'source' => $entitlement['source'],
-                ]);
-            }
+        $requestedEntitlements ??= $this->resolveRequestedEntitlements($plan);
 
-            return;
+        if ($subscription->getAttribute('status') === 'pending') {
+            SubscriptionEntitlement::query()
+                ->where('subscription_id', $subscription->getKey())
+                ->whereIn('source', self::PLAN_ENTITLEMENT_SOURCES)
+                ->delete();
         }
 
-        $primaryEntitlement = method_exists($plan, 'primaryEntitlement')
-            ? $plan->primaryEntitlement()
-            : null;
-
-        if (
-            is_array($primaryEntitlement)
-            && ! empty($primaryEntitlement['type'])
-            && ! empty($primaryEntitlement['id'])
-            && class_exists((string) $primaryEntitlement['type'])
-        ) {
+        foreach ($requestedEntitlements as $entitlement) {
             SubscriptionEntitlement::firstOrCreate([
                 'subscription_id' => $subscription->getKey(),
-                'entitlable_type' => (string) $primaryEntitlement['type'],
-                'entitlable_id' => (int) $primaryEntitlement['id'],
+                'entitlable_type' => $entitlement['type'],
+                'entitlable_id' => $entitlement['id'],
             ], [
-                'source' => 'plan_primary_entitlement',
-            ]);
-
-            return;
-        }
-
-        // Plan-level entitlement presets for package-native usage.
-        $presetEntitlements = data_get($plan, 'metadata.entitlements', []);
-        if (! is_array($presetEntitlements)) {
-            return;
-        }
-
-        foreach ($presetEntitlements as $entitlement) {
-            $type = data_get($entitlement, 'type');
-            $id = (int) data_get($entitlement, 'id');
-            if (! $type || $id <= 0 || ! class_exists($type)) {
-                continue;
-            }
-
-            SubscriptionEntitlement::firstOrCreate([
-                'subscription_id' => $subscription->getKey(),
-                'entitlable_type' => $type,
-                'entitlable_id' => $id,
-            ], [
-                'source' => 'plan',
+                'source' => $entitlement['source'],
             ]);
         }
     }
 
-    protected function resolveRequestedEntitlements(Model $plan)
+    /**
+     * Entitlement rows for a checkout, from the plan's composition: fixed content items, the
+     * customer's validated picks for "any" items, and (for access checks that still read rows)
+     * the current records of unlimited "any" items.
+     *
+     * @return Collection<int, array{type: string, id: int, source: string}>
+     */
+    protected function resolveRequestedEntitlements(Model $plan): Collection
     {
+        $composition = app(PlanComposition::class);
+        $components = $composition->components($plan);
+        $selectable = $composition->selectablePicks($components);
+        $selections = $this->resolveRequestedSelections();
         $entitlements = collect();
-        $kind = (string) ($plan->getAttribute('kind') ?: 'per_exam');
-        $mode = (string) ($plan->getAttribute('entitlement_mode') ?: 'fixed');
-        $config = $plan->getAttribute('entitlements_config');
-        $config = is_array($config) ? $config : [];
 
-        if ($kind === 'main' && $mode === 'fixed') {
-            foreach ((array) data_get($config, 'fixed', []) as $entry) {
-                $typeToken = strtolower((string) data_get($entry, 'type'));
-                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
-                $ids = collect((array) data_get($entry, 'ids', []))
-                    ->map(fn ($id) => (int) $id)
-                    ->filter(fn ($id) => $id > 0);
+        foreach ($selections as $typeToken => $keys) {
+            $modelClass = BillableItem::classForToken($typeToken);
 
-                if (! $modelClass || ! class_exists($modelClass)) {
-                    continue;
-                }
+            if (! $modelClass || ! array_key_exists($typeToken, $selectable)) {
+                throw CommonException::fromMessage("This plan does not offer {$typeToken} selections.", 422);
+            }
 
-                foreach ($ids as $id) {
-                    $entitlements->push([
-                        'type' => $modelClass,
-                        'id' => $id,
-                        'source' => 'plan_fixed',
-                    ]);
-                }
+            if (count($keys) > $selectable[$typeToken]) {
+                throw CommonException::fromMessage("Too many {$typeToken} selections for this plan.", 422);
+            }
+
+            foreach ($this->resolveSelectionIds($modelClass, $keys, $typeToken) as $id) {
+                $entitlements->push(['type' => $modelClass, 'id' => $id, 'source' => 'plan_quota']);
             }
         }
 
-        if ($kind === 'main' && $mode === 'quota') {
-            foreach ($this->resolveRequestedSelections() as $typeToken => $ids) {
-                $limit = data_get($config, "quota.{$typeToken}_slots");
-                if ($limit !== 'all' && $limit !== null && count($ids) > (int) $limit) {
-                    throw CommonException::fromMessage("Too many {$typeToken} selections for this plan.", 422);
-                }
-
-                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
-                if (! $modelClass || ! class_exists($modelClass)) {
-                    continue;
-                }
-
-                foreach ($ids as $id) {
-                    $entitlements->push([
-                        'type' => $modelClass,
-                        'id' => (int) $id,
-                        'source' => 'plan_quota',
-                    ]);
-                }
-            }
-
-            foreach ((array) data_get($config, 'quota', []) as $quotaKey => $limit) {
-                if ($limit !== 'all' || ! str_ends_with((string) $quotaKey, '_slots')) {
-                    continue;
-                }
-
-                $typeToken = str_replace('_slots', '', (string) $quotaKey);
-                $modelClass = config("billing.entitlements.type_map.{$typeToken}");
-                if (! $modelClass || ! class_exists($modelClass)) {
-                    continue;
-                }
-
-                $ids = $modelClass::query()->pluck('id');
-                foreach ($ids as $id) {
-                    $entitlements->push([
-                        'type' => $modelClass,
-                        'id' => (int) $id,
-                        'source' => 'plan_quota_all',
-                    ]);
-                }
+        foreach ($selectable as $typeToken => $picks) {
+            if (! array_key_exists($typeToken, $selections)) {
+                throw CommonException::fromMessage("Choose up to {$picks} {$typeToken} item(s) for this plan.", 422);
             }
         }
 
-        if ($kind === 'main' && $mode === 'quota' && $entitlements->isEmpty()) {
-            return collect();
+        foreach ($components as $component) {
+            if ($component['kind'] !== PlanComposition::KIND_CONTENT) {
+                continue;
+            }
+
+            if ($component['id'] !== null) {
+                $entitlements->push(['type' => $component['class'], 'id' => $component['id'], 'source' => 'plan_fixed']);
+
+                continue;
+            }
+
+            if ($component['picks'] === null && config('billing.entitlements.expand_unlimited', true)) {
+                foreach ($component['class']::query()->pluck('id') as $id) {
+                    $entitlements->push(['type' => $component['class'], 'id' => (int) $id, 'source' => 'plan_quota_all']);
+                }
+            }
         }
 
         return $entitlements->unique(fn ($item) => $item['type'].'-'.$item['id'])->values();
+    }
+
+    /**
+     * Resolve selection keys (numeric ids or slugs) to existing record ids; every key must match.
+     *
+     * @param  list<string>  $keys
+     * @return list<int>
+     */
+    protected function resolveSelectionIds(string $modelClass, array $keys, string $typeToken): array
+    {
+        $model = new $modelClass;
+        $numeric = array_values(array_filter($keys, fn ($key) => ctype_digit($key)));
+        $slugs = array_values(array_diff($keys, $numeric));
+
+        $records = $modelClass::query()->where(function ($builder) use ($numeric, $slugs, $model) {
+            if ($numeric !== []) {
+                $builder->orWhereIn($model->getQualifiedKeyName(), array_map('intval', $numeric));
+            }
+            if ($slugs !== []) {
+                $builder->orWhereIn($model->qualifyColumn('slug'), $slugs);
+            }
+        })->get();
+
+        $matched = $records->flatMap(fn ($record) => [(string) $record->getKey(), (string) $record->getAttribute('slug')])->all();
+        $unknown = array_values(array_diff($keys, $matched));
+
+        if ($unknown !== []) {
+            throw CommonException::fromMessage("Unknown {$typeToken} selection: ".implode(', ', $unknown), 422);
+        }
+
+        return $records->map(fn ($record) => (int) $record->getKey())->unique()->values()->all();
     }
 
     protected function resolveRequestedSelections(): array
@@ -390,8 +382,9 @@ class PlanSubscriptionService
 
         foreach ($selectionPayload as $typeToken => $ids) {
             $normalizedIds = collect(is_array($ids) ? $ids : explode(',', (string) $ids))
-                ->map(fn ($id) => (int) $id)
-                ->filter(fn ($id) => $id > 0)
+                ->map(fn ($id) => trim((string) $id))
+                ->filter(fn ($id) => $id !== '' && $id !== '0')
+                ->unique()
                 ->values()
                 ->all();
 

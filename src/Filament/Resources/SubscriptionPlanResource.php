@@ -2,21 +2,21 @@
 
 namespace Lyre\Billing\Filament\Resources;
 
-use Lyre\Billing\Filament\Clusters\Subscriptions;
-use Lyre\Billing\Filament\Resources\SubscriptionPlanResource\Pages;
-use Lyre\Billing\Filament\Resources\SubscriptionPlanResource\RelationManagers;
-use Lyre\Billing\Models\SubscriptionPlan;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Forms;
-use Filament\Schemas\Schema;
 use Filament\Resources\Resource;
+use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use FilamentTiptapEditor\TiptapEditor;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
-use ValentinMorice\FilamentJsonColumn\JsonColumn;
+use Lyre\Billing\Filament\Resources\SubscriptionPlanResource\Pages;
+use Lyre\Billing\Filament\Resources\SubscriptionPlanResource\RelationManagers;
+use Lyre\Billing\Models\SubscriptionPlan;
 use UnitEnum;
+use ValentinMorice\FilamentJsonColumn\JsonColumn;
 
 class SubscriptionPlanResource extends Resource
 {
@@ -24,12 +24,20 @@ class SubscriptionPlanResource extends Resource
 
     protected static \BackedEnum|string|null $navigationIcon = 'gmdi-workspace-premium';
 
-    public static function getNavigationGroup(): string | UnitEnum | null
+    public static function getNavigationGroup(): string|UnitEnum|null
     {
         return 'Subscriptions';
     }
 
     protected static ?int $navigationSort = 17;
+
+    /**
+     * Host apps may have created subscription_plans before some package columns existed.
+     */
+    protected static function hasPlanColumn(string $column): bool
+    {
+        return \Illuminate\Support\Facades\Schema::hasColumn((new SubscriptionPlan)->getTable(), $column);
+    }
 
     public static function form(Schema $form): Schema
     {
@@ -43,9 +51,10 @@ class SubscriptionPlanResource extends Resource
                     ->numeric()
                     ->default(0.00),
                 Forms\Components\TextInput::make('currency')
-                    ->required()
+                    ->required(fn () => static::hasPlanColumn('currency'))
                     ->maxLength(3)
-                    ->default('KES'),
+                    ->default('KES')
+                    ->visible(fn () => static::hasPlanColumn('currency')),
                 Forms\Components\Select::make('billing_cycle')
                     ->required()
                     ->options([
@@ -97,7 +106,21 @@ class SubscriptionPlanResource extends Resource
                         'active' => 'Active',
                         'inactive' => 'Inactive',
                     ]),
-                JsonColumn::make('entitlements_config'),
+                Forms\Components\TextInput::make('metadata.catalog_key')
+                    ->label('Catalog tier')
+                    ->helperText('Groups monthly/annual variants on the pricing page, e.g. basic, standard, premium.')
+                    ->maxLength(50),
+                Forms\Components\TagsInput::make('features')
+                    ->label('Marketing highlights')
+                    ->helperText('Optional copy shown alongside the generated benefits. What the plan grants comes from its bundles.')
+                    ->visible(fn () => static::hasPlanColumn('features')),
+                Forms\Components\Placeholder::make('benefits_preview')
+                    ->label('Benefits (generated from bundles)')
+                    ->content(fn (?SubscriptionPlan $record) => $record
+                        ? (collect($record->benefits)->pluck('text')->map(fn ($text) => '• '.$text)->implode("\n") ?: 'No bundles attached yet.')
+                        : 'Save the plan, then attach bundles below.'),
+                JsonColumn::make('entitlements_config')
+                    ->helperText('Legacy configuration, read only when the plan has no content bundles.'),
                 TiptapEditor::make('description')
                     ->columnSpanFull(),
 
@@ -154,11 +177,11 @@ class SubscriptionPlanResource extends Resource
                 //
             ])
             ->recordActions([
-                \Filament\Actions\EditAction::make(),
+                EditAction::make(),
             ])
             ->toolbarActions([
-                \Filament\Actions\BulkActionGroup::make([
-                    \Filament\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->striped()
