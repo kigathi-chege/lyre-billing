@@ -36,8 +36,9 @@ class PlanComposition
 
         $links = SubscriptionPlanBillable::query()
             ->where('subscription_plan_id', $plan->getKey())
-            ->with('billable.billableItems')
+            ->with(['billable.billableItems' => fn ($items) => $items->orderBy('id')])
             ->orderBy('order')
+            ->orderBy('id')
             ->get();
 
         foreach ($links as $link) {

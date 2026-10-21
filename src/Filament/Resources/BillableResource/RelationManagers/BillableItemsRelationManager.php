@@ -171,6 +171,12 @@ class BillableItemsRelationManager extends RelationManager
                     ->options(array_combine(BillingRules::RESET_PERIODS, array_map(fn ($period) => Str::headline($period), BillingRules::RESET_PERIODS)))
                     ->default('billing_cycle')
                     ->visible(fn (callable $get) => $get('item_type') === BillableItem::TYPE_METER),
+                Forms\Components\TextInput::make('metadata.guest_limit')
+                    ->label('Limit for guests')
+                    ->helperText('Free-tier meters only: the allowance for visitors who are not signed in.')
+                    ->numeric()
+                    ->minValue(0)
+                    ->visible(fn (callable $get) => $get('item_type') === BillableItem::TYPE_METER),
                 Forms\Components\TextInput::make('metadata.per_resource_limit')
                     ->label('Limit per item (e.g. attempts per assessment)')
                     ->numeric()
