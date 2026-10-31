@@ -18,6 +18,8 @@ use Lyre\Billing\Models\Transaction;
 use Lyre\Billing\Services\SubscriptionLifecycleService;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\SignatureVerificationException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 class WebhookEventHandler
 {
@@ -28,11 +30,12 @@ class WebhookEventHandler
         $secrets = Client::webhookSecrets();
 
         if ($signature === '') {
-            throw new \RuntimeException('Stripe webhook signature header is missing.');
+            throw new BadRequestHttpException('Stripe webhook signature header is missing.');
         }
 
         if ($secrets === []) {
-            throw new \RuntimeException('Stripe webhook secret is not configured.');
+            // Our misconfiguration, not the caller's mistake: 503 (Stripe retries), never a 4xx that would drop events.
+            throw new ServiceUnavailableHttpException(null, 'Stripe webhook secret is not configured.');
         }
 
         if (! class_exists(\Stripe\Webhook::class)) {
@@ -89,7 +92,7 @@ class WebhookEventHandler
             return $thinEvent;
         }
 
-        throw new \RuntimeException('Stripe webhook signature could not be verified for either snapshot or thin payloads.');
+        throw new BadRequestHttpException('Stripe webhook signature could not be verified for either snapshot or thin payloads.');
     }
 
     protected function parseSnapshotEvent(string $payload, string $signature, array $secrets): ?array
@@ -115,7 +118,13 @@ class WebhookEventHandler
 
     protected function parseThinEvent(string $payload, string $signature, array $secrets): ?array
     {
-        $client = Client::make(Client::thinWebhookApiVersion());
+        try {
+            $client = Client::make(Client::thinWebhookApiVersion());
+        } catch (\RuntimeException) {
+            // No API client can be built (no Stripe API secret): a thin payload cannot be verified here, so it is
+            // treated as unverified (400) rather than surfacing our configuration as a server error.
+            return null;
+        }
 
         foreach ($secrets as $secret) {
             try {
