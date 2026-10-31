@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.1
+
+- Fix: `invoices.due_date` is nullable, so the first checkout on a freshly migrated database no longer fails (the pending invoice is created before the provider issues one). Migration is idempotent.
+- Fix: a missing or forged `Stripe-Signature` now answers HTTP 400 instead of 500; a missing webhook secret answers 503 (our misconfiguration; Stripe retries). Behaviour for valid signatures is unchanged.
+
 ## 2.8.0
 
 - Plans are composed from billables (bundles), billable items (content by type-map token and id, "any" content with picks, or meters) and subscription_plan_billables (per-plan limit, overage price, metadata).

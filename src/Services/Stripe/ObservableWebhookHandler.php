@@ -9,6 +9,7 @@ use Lyre\Billing\Models\BillingProviderEvent;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\WebhookSignature;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 class ObservableWebhookHandler extends WebhookEventHandler
 {
@@ -24,7 +25,7 @@ class ObservableWebhookHandler extends WebhookEventHandler
         }
         $secrets = Client::webhookSecrets();
         if (! $secrets) {
-            throw new \RuntimeException('Stripe webhook signing secret is not configured.');
+            throw new ServiceUnavailableHttpException(null, 'Stripe webhook signing secret is not configured.');
         }
         $verified = false;
         foreach ($secrets as $secret) {
