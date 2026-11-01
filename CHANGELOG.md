@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.8.2
 
 - Fix: the Stripe reconcile no longer rewrites settled invoices and transactions. Money was compared as strings ("89.97" vs the stored "89.970000"), so every pass saw a change and bumped `updated_at`; it is now compared canonically and a projection is saved only when something really changed (raw provider payloads are stored with a real change or on creation, never alone).
 - Fix: a refreshed payment-verification stamp on its own (paid invoices are re-verified daily) is recorded on the evidence row only. It no longer re-applies every invoice and payment, or writes a state-change record.
