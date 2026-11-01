@@ -155,9 +155,21 @@ class BillingSynchronizer
             if ($dryRun) {
                 return $outcome;
             }
-            if (! $differences) {
-                DB::transaction(function () use ($subscription, $source, $correlation): void {
+            if (! $financialChanges) {
+                // Nothing financial changed (no differences, or only a refreshed payment verification
+                // stamp): record the observation and the new stamp, and leave invoices and
+                // transactions alone.
+                DB::transaction(function () use ($subscription, $invoices, $account, $mode, $source, $correlation): void {
                     $subscription = $subscription->newQueryWithoutScopes()->whereKey($subscription->id)->lockForUpdate()->firstOrFail();
+                    foreach ($invoices as $invoice) {
+                        $known = BillingProviderInvoice::where(['provider' => 'stripe', 'account' => $account, 'livemode' => $mode, 'provider_invoice_id' => $invoice['id']])->first();
+                        if ($known && ! empty($invoice['_payments_verified_at']) && data_get($known->snapshot, '_payments_verified_at') !== $invoice['_payments_verified_at']) {
+                            $snapshot = $known->snapshot;
+                            $snapshot['_payments_verified_at'] = $invoice['_payments_verified_at'];
+                            $known->snapshot = $snapshot;
+                            $known->save();
+                        }
+                    }
                     $metadata = $subscription->metadata ?? [];
                     data_set($metadata, 'billing_observation.verified_at', now()->toIso8601String());
                     data_set($metadata, 'billing_observation.source', $source);
@@ -241,6 +253,33 @@ class BillingSynchronizer
         return $candidates->first();
     }
 
+    /**
+     * Save a local projection only when the provider data really changed it.
+     *
+     * Money is compared canonically: the provider helper yields "89.97" while the database returns
+     * "89.970000", and Eloquent treats those as different strings. Without this every reconcile pass
+     * rewrote settled invoices and transactions and bumped their updated_at, which made old payments
+     * look like they happened today. $evidence (raw provider payloads) is written alongside a real
+     * change or on creation, but never on its own; the evidence tables already hold the snapshot.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $evidence
+     */
+    protected function saveIfChanged(Model $model, array $attributes, array $evidence = []): void
+    {
+        if ($model->exists) {
+            foreach (['amount', 'amount_paid'] as $column) {
+                if (array_key_exists($column, $attributes) && ProviderData::canonicalMoney((string) $model->getAttribute($column)) === ProviderData::canonicalMoney((string) $attributes[$column])) {
+                    unset($attributes[$column]);
+                }
+            }
+        }
+        $model->fill($attributes);
+        if (! $model->exists || $model->isDirty()) {
+            $model->fill($evidence)->save();
+        }
+    }
+
     protected function applyInvoice(Model $subscription, array $data, string $account, bool $mode): void
     {
         $identity = ['provider' => 'stripe', 'account' => $account, 'livemode' => $mode, 'provider_invoice_id' => $data['id']];
@@ -255,9 +294,9 @@ class BillingSynchronizer
         data_set($metadata, 'providers.stripe.invoice_id', $data['id']);
         data_set($metadata, 'providers.stripe.invoice_status', $data['status']);
         data_set($metadata, 'providers.stripe.currency', $currency);
-        $local->fill(['amount' => ProviderData::decimal((int) $data['amount_due'], $currency), 'amount_paid' => ProviderData::decimal((int) $data['amount_paid'], $currency), 'status' => match ($data['status']) {
+        $this->saveIfChanged($local, ['amount' => ProviderData::decimal((int) $data['amount_due'], $currency), 'amount_paid' => ProviderData::decimal((int) $data['amount_paid'], $currency), 'status' => match ($data['status']) {
             'paid' => 'paid','void','uncollectible' => 'failed',default => 'pending'
-        }, 'metadata' => $metadata, 'due_date' => now()->setTimestamp((int) ($data['due_date'] ?? $data['created']))])->save();
+        }, 'metadata' => $metadata, 'due_date' => now()->setTimestamp((int) ($data['due_date'] ?? $data['created']))]);
         if (! $local->invoice_number) {
             $local->invoice_number = 'INV-'.now()->format('Ym').'-'.str_pad((string) $local->id, 6, '0', STR_PAD_LEFT);
             $local->saveQuietly();
@@ -283,7 +322,7 @@ class BillingSynchronizer
             $transaction ??= new Transaction(['invoice_id' => $local->id, 'user_id' => $subscription->user_id, 'payment_method_id' => PaymentMethod::get('stripe')?->id, 'provider_reference' => $pid]);
             $amount = $this->paymentAmount($p);
             $status = (string) ($p['status'] ?? 'unknown');
-            $transaction->fill(['status' => $this->transactionStatus($status), 'amount' => ProviderData::decimal($amount, $p['currency'] ?? $currency), 'currency' => strtoupper($p['currency'] ?? $currency), 'metadata' => ['provider' => 'stripe', 'evidence' => 'provider_payment', 'provider_invoice_id' => $data['id']], 'raw_callback' => json_encode($p, JSON_THROW_ON_ERROR)])->save();
+            $this->saveIfChanged($transaction, ['status' => $this->transactionStatus($status), 'amount' => ProviderData::decimal($amount, $p['currency'] ?? $currency), 'currency' => strtoupper($p['currency'] ?? $currency), 'metadata' => ['provider' => 'stripe', 'evidence' => 'provider_payment', 'provider_invoice_id' => $data['id']]], ['raw_callback' => json_encode($p, JSON_THROW_ON_ERROR)]);
             $payment->fill(['subscription_id' => $subscription->id, 'provider_invoice_id' => $evidence->id, 'local_transaction_id' => $transaction->id, 'status' => $status, 'currency' => $p['currency'] ?? $currency, 'amount_minor' => $amount, 'refunded_minor' => (int) ($p['_refunded_minor'] ?? 0), 'disputed' => (bool) ($p['_disputed'] ?? false), 'snapshot' => $p])->save();
         }
         if (! empty($data['_payments'])) {
